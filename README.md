@@ -1,6 +1,6 @@
 # Balance Capsule
 
-一款精致、轻量、常驻桌面的 AI Agent 配额悬浮球。无需打开设置页，即可查看 Codex、Claude Code 官方额度，或 DeepSeek、OpenRouter 第三方 API 余额。
+一款精致、轻量、常驻桌面的 AI Agent 配额悬浮球。无需打开设置页，即可查看 Codex、Claude Code 官方额度。
 
 ![macOS Apple Silicon](https://img.shields.io/badge/macOS-13%2B%20Apple%20Silicon-111111?style=flat-square&logo=apple)
 ![Windows x64](https://img.shields.io/badge/Windows-10%2F11%20x64-1674CE?style=flat-square&logo=windows11)
