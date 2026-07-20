@@ -6,8 +6,6 @@
 ![Windows x64](https://img.shields.io/badge/Windows-10%2F11%20x64-1674CE?style=flat-square&logo=windows11)
 ![Release](https://img.shields.io/badge/release-v1.2.15-4CAEFF?style=flat-square)
 
-> Balance Capsule 是独立开发的本机工具，与 OpenAI、Anthropic、DeepSeek 或 OpenRouter 没有隶属、合作或背书关系。
-
 ## 下载
 
 前往 [Latest Release](https://github.com/Cchenshufen/Balance-Capsule/releases/latest) 下载对应平台版本：
