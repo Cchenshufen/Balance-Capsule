@@ -1,0 +1,6 @@
+.superpowers/
+.worktrees/
+**/bin/
+**/obj/
+artifacts/
+work/

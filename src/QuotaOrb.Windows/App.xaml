@@ -1,0 +1,11 @@
+﻿<Application x:Class="QuotaOrb.Windows.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:QuotaOrb.Windows"
+             ShutdownMode="OnExplicitShutdown">
+    <Application.Resources>
+        <Style TargetType="ToolTip">
+            <Setter Property="FontFamily" Value="Microsoft YaHei UI" />
+        </Style>
+    </Application.Resources>
+</Application>

@@ -1,0 +1,406 @@
+<Window x:Class="QuotaOrb.Windows.Windows.DetailFlyoutWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Balance Capsule 详情"
+        Width="326"
+        Height="198"
+        AllowsTransparency="True"
+        Background="Transparent"
+        WindowStyle="None"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        ShowActivated="False"
+        Topmost="True"
+        Focusable="False"
+        SnapsToDevicePixels="True">
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibility" />
+
+        <Storyboard x:Key="FlyoutEnterStoryboard">
+            <DoubleAnimation Storyboard.TargetName="FlyoutRoot"
+                             Storyboard.TargetProperty="Opacity"
+                             From="0" To="1" Duration="0:0:0.22" />
+            <DoubleAnimation Storyboard.TargetName="FlyoutScale"
+                             Storyboard.TargetProperty="ScaleX"
+                             From="0.82" To="1" Duration="0:0:0.24">
+                <DoubleAnimation.EasingFunction>
+                    <CubicEase EasingMode="EaseOut" />
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+            <DoubleAnimation Storyboard.TargetName="FlyoutScale"
+                             Storyboard.TargetProperty="ScaleY"
+                             From="0.72" To="1" Duration="0:0:0.24">
+                <DoubleAnimation.EasingFunction>
+                    <CubicEase EasingMode="EaseOut" />
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+            <DoubleAnimation Storyboard.TargetName="FlyoutTranslate"
+                             Storyboard.TargetProperty="X"
+                             From="-18" To="0" Duration="0:0:0.24">
+                <DoubleAnimation.EasingFunction>
+                    <CubicEase EasingMode="EaseOut" />
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+        </Storyboard>
+        <Storyboard x:Key="FlyoutExitStoryboard">
+            <DoubleAnimation Storyboard.TargetName="FlyoutRoot"
+                             Storyboard.TargetProperty="Opacity"
+                             From="1" To="0" Duration="0:0:0.14" />
+            <DoubleAnimation Storyboard.TargetName="FlyoutScale"
+                             Storyboard.TargetProperty="ScaleX"
+                             From="1" To="0.88" Duration="0:0:0.14" />
+            <DoubleAnimation Storyboard.TargetName="FlyoutScale"
+                             Storyboard.TargetProperty="ScaleY"
+                             From="1" To="0.82" Duration="0:0:0.14" />
+        </Storyboard>
+
+        <Style x:Key="GlassProgress" TargetType="ProgressBar">
+            <Setter Property="Height" Value="6" />
+            <Setter Property="Maximum" Value="100" />
+            <Setter Property="Background" Value="#4A9FB3C5" />
+            <Setter Property="Foreground" Value="#FF46BFFA" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ProgressBar">
+                        <Grid ClipToBounds="True">
+                            <Border Background="{TemplateBinding Background}" CornerRadius="3" />
+                            <Border x:Name="PART_Track" />
+                            <Border x:Name="PART_Indicator"
+                                    HorizontalAlignment="Left"
+                                    Background="{TemplateBinding Foreground}"
+                                    CornerRadius="3">
+                                <Border.Effect>
+                                    <DropShadowEffect BlurRadius="5"
+                                                      ShadowDepth="0"
+                                                      Opacity="0.35"
+                                                      Color="#2E9FE8" />
+                                </Border.Effect>
+                            </Border>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="TokenValue" TargetType="TextBlock">
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="FontFamily" Value="Segoe UI Variable Text, Microsoft YaHei UI" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="#123D67" />
+        </Style>
+        <Style x:Key="TokenLabel" TargetType="TextBlock">
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="Margin" Value="0,2,0,0" />
+            <Setter Property="FontFamily" Value="Microsoft YaHei UI" />
+            <Setter Property="FontSize" Value="8" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="#7992AD" />
+        </Style>
+    </Window.Resources>
+
+    <Grid x:Name="FlyoutRoot"
+          Margin="5"
+          Opacity="0"
+          RenderTransformOrigin="0,0.5">
+        <Grid.RenderTransform>
+            <TransformGroup>
+                <ScaleTransform x:Name="FlyoutScale" ScaleX="1" ScaleY="1" />
+                <TranslateTransform x:Name="FlyoutTranslate" />
+            </TransformGroup>
+        </Grid.RenderTransform>
+
+        <Path x:Name="GlassSilhouette"
+              Margin="0"
+              Stretch="Fill"
+              Stroke="#EFFFFFFF"
+              StrokeThickness="1.2"
+              Data="M42,1 H294 C306,1 315,10 315,22 V166 C315,178 306,187 294,187 H42 C30,187 20,178 20,166 V120 C15,116 8,114 1,108 V80 C8,74 15,72 20,68 V22 C20,10 30,1 42,1 Z">
+            <Path.Fill>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                    <GradientStop Offset="0" Color="#D8FFFFFF" />
+                    <GradientStop Offset="0.48" Color="#A6EAF7FD" />
+                    <GradientStop Offset="0.76" Color="#90DDEFFC" />
+                    <GradientStop Offset="1" Color="#A8F4EEFF" />
+                </LinearGradientBrush>
+            </Path.Fill>
+            <Path.Effect>
+                <DropShadowEffect BlurRadius="24"
+                                  ShadowDepth="7"
+                                  Opacity="0.22"
+                                  Color="#244C6C" />
+            </Path.Effect>
+        </Path>
+
+        <Border x:Name="GlassConsoleBorder"
+                Margin="20,0,0,0"
+                Background="Transparent"
+                BorderBrush="Transparent"
+                BorderThickness="0"
+                CornerRadius="22">
+
+            <Grid ClipToBounds="True">
+                <Ellipse Width="230"
+                         Height="130"
+                         Margin="-55,-74,0,0"
+                         HorizontalAlignment="Left"
+                         VerticalAlignment="Top"
+                         Fill="#56FFFFFF" />
+                <Path HorizontalAlignment="Right"
+                      VerticalAlignment="Stretch"
+                      Width="145"
+                      Opacity="0.20"
+                      Fill="#B6E6FFFF"
+                      Data="M0,0 L145,0 L145,192 L86,192 C110,130 72,72 0,0 Z" />
+                <Border Margin="2"
+                        Padding="20,13,20,10"
+                        BorderBrush="#9AFFFFFF"
+                        BorderThickness="1"
+                        CornerRadius="20">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="24" />
+                            <RowDefinition Height="27" />
+                            <RowDefinition Height="54" />
+                            <RowDefinition Height="1" />
+                            <RowDefinition Height="42" />
+                            <RowDefinition Height="18" />
+                        </Grid.RowDefinitions>
+
+                        <Grid Grid.Row="0">
+                            <TextBlock Text="Balance Capsule"
+                                       VerticalAlignment="Center"
+                                       FontFamily="Segoe UI Variable Display, Microsoft YaHei UI"
+                                       FontSize="16"
+                                       FontWeight="SemiBold"
+                                       Foreground="#0B3762" />
+                            <Border x:Name="StatusBadge"
+                                    Width="9"
+                                    Height="9"
+                                    HorizontalAlignment="Right"
+                                    VerticalAlignment="Center"
+                                    Background="#FFFFA261"
+                                    BorderBrush="#EFFFFFFF"
+                                    BorderThickness="1"
+                                    CornerRadius="5">
+                                <TextBlock x:Name="StatusBadgeText"
+                                           Text=""
+                                           FontSize="1" />
+                            </Border>
+                        </Grid>
+
+                        <Border x:Name="AgentBadge"
+                                Grid.Row="1"
+                                Width="86"
+                                Height="22"
+                                Padding="8,2"
+                                HorizontalAlignment="Left"
+                                VerticalAlignment="Center"
+                                Background="#8CFFFFFF"
+                                BorderBrush="#CFFFFFFF"
+                                BorderThickness="1"
+                                CornerRadius="11">
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                <TextBlock Text="⌁"
+                                           Margin="0,-1,5,0"
+                                           FontSize="15"
+                                           FontWeight="Bold"
+                                           Foreground="#2FA7FF" />
+                                <TextBlock Text="{Binding AgentName}"
+                                           VerticalAlignment="Center"
+                                           FontFamily="Segoe UI Variable Text, Microsoft YaHei UI"
+                                           FontSize="10.5"
+                                           FontWeight="SemiBold"
+                                           Foreground="#37577B" />
+                            </StackPanel>
+                        </Border>
+
+                        <Grid Grid.Row="2"
+                              Visibility="{Binding IsDataAvailable, Converter={StaticResource BooleanToVisibility}}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="93" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Orientation="Horizontal"
+                                        VerticalAlignment="Center">
+                                <TextBlock Text="{Binding DisplayText}"
+                                           FontFamily="Segoe UI Variable Display, Microsoft YaHei UI"
+                                           FontSize="36"
+                                           FontWeight="Normal"
+                                           Foreground="#0A3A69" />
+                                <TextBlock Text="%"
+                                           Margin="3,11,0,0"
+                                           FontFamily="Segoe UI Variable Text"
+                                           FontSize="20"
+                                           Foreground="#0A3A69"
+                                           Visibility="{Binding ShowsPercent, Converter={StaticResource BooleanToVisibility}}" />
+                            </StackPanel>
+
+                            <Grid x:Name="TokenRegion"
+                                  Grid.Column="1"
+                                  Margin="4,7,0,4"
+                                  Visibility="{Binding HasTokenUsage, Converter={StaticResource BooleanToVisibility}}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="1" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="1" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding TokenToday}" Style="{StaticResource TokenValue}" />
+                                    <TextBlock Text="今日" Style="{StaticResource TokenLabel}" />
+                                </StackPanel>
+                                <Border Grid.Column="1" Margin="0,7" Background="#8CFFFFFF" />
+                                <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding TokenMonth}" Style="{StaticResource TokenValue}" />
+                                    <TextBlock Text="本月" Style="{StaticResource TokenLabel}" />
+                                </StackPanel>
+                                <Border Grid.Column="3" Margin="0,7" Background="#8CFFFFFF" />
+                                <StackPanel Grid.Column="4" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding TokenTotal}" Style="{StaticResource TokenValue}" />
+                                    <TextBlock Text="总计" Style="{StaticResource TokenLabel}" />
+                                </StackPanel>
+                            </Grid>
+
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <StackPanel.Style>
+                                    <Style TargetType="StackPanel">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasTokenUsage}" Value="True">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </StackPanel.Style>
+                                <TextBlock Text="{Binding CaptionText}"
+                                           FontFamily="Microsoft YaHei UI"
+                                           FontSize="11"
+                                           Foreground="#54718D" />
+                                <TextBlock Margin="0,5,0,0"
+                                           Text="{Binding SourceName}"
+                                           FontFamily="Microsoft YaHei UI"
+                                           FontSize="9"
+                                           Foreground="#8297AB" />
+                            </StackPanel>
+                        </Grid>
+
+                        <Border Grid.Row="3" Background="#9AFFFFFF" />
+
+                        <Grid Grid.Row="4" Margin="0,4,0,1">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <Border x:Name="CurrentMetricTile" Height="18">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasTokenUsage}" Value="True">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="43" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="43" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock x:Name="CurrentMetricLabel"
+                                               Text="5h"
+                                               VerticalAlignment="Center"
+                                               FontSize="11"
+                                               Foreground="#163E66" />
+                                    <ProgressBar Grid.Column="1"
+                                                 Value="{Binding CurrentRemainingPercent}"
+                                                 Style="{StaticResource GlassProgress}" />
+                                    <TextBlock x:Name="CurrentMetricValue"
+                                               Grid.Column="2"
+                                               Text="{Binding CurrentValue}"
+                                               HorizontalAlignment="Right"
+                                               VerticalAlignment="Center"
+                                               FontSize="9"
+                                               Foreground="#163E66" />
+                                    <TextBlock x:Name="CurrentMetricTag" Visibility="Collapsed" />
+                                </Grid>
+                            </Border>
+                            <Border x:Name="WeeklyMetricTile" Grid.Row="1" Height="18">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="43" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="43" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock x:Name="WeeklyMetricLabel"
+                                               Text="Week"
+                                               VerticalAlignment="Center"
+                                               FontSize="11"
+                                               Foreground="#163E66" />
+                                    <ProgressBar Grid.Column="1"
+                                                 Value="{Binding WeeklyRemainingPercent}"
+                                                 Style="{StaticResource GlassProgress}" />
+                                    <TextBlock x:Name="WeeklyMetricValue"
+                                               Grid.Column="2"
+                                               Text="{Binding WeeklyValue}"
+                                               HorizontalAlignment="Right"
+                                               VerticalAlignment="Center"
+                                               FontSize="9"
+                                               Foreground="#163E66" />
+                                    <TextBlock x:Name="WeeklyMetricTag" Visibility="Collapsed" />
+                                </Grid>
+                            </Border>
+                        </Grid>
+
+                        <TextBlock Grid.Row="5"
+                                   Text="{Binding LastRefreshValue, StringFormat=Updated {0}}"
+                                   VerticalAlignment="Bottom"
+                                   FontFamily="Segoe UI Variable Text, Microsoft YaHei UI"
+                                   FontSize="9"
+                                   Foreground="#7690AD" />
+
+                        <Border Grid.Row="2"
+                                Grid.RowSpan="3"
+                                Padding="12"
+                                VerticalAlignment="Stretch"
+                                Background="#D6FFF1F2"
+                                BorderBrush="#8CF4B8BE"
+                                BorderThickness="1"
+                                CornerRadius="13"
+                                Visibility="{Binding HasError, Converter={StaticResource BooleanToVisibility}}">
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Text="读取失败"
+                                           FontSize="12"
+                                           FontWeight="Bold"
+                                           Foreground="#A14D58" />
+                                <TextBlock Margin="0,5,0,0"
+                                           Text="{Binding ErrorMessage}"
+                                           TextWrapping="Wrap"
+                                           FontSize="9"
+                                           Foreground="#A55E67" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Grid.Row="2"
+                                Grid.RowSpan="3"
+                                Padding="12"
+                                VerticalAlignment="Stretch"
+                                Background="#D6EEF7FC"
+                                BorderBrush="#8CB8CEDA"
+                                BorderThickness="1"
+                                CornerRadius="13"
+                                Visibility="{Binding HasNotice, Converter={StaticResource BooleanToVisibility}}">
+                            <TextBlock Text="{Binding NoticeMessage}"
+                                       TextWrapping="Wrap"
+                                       VerticalAlignment="Center"
+                                       FontSize="9.5"
+                                       Foreground="#4F6D80" />
+                        </Border>
+                    </Grid>
+                </Border>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

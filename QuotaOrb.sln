@@ -1,0 +1,50 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{D642DD27-657B-4DAA-BA08-D619BBE243BA}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "QuotaOrb.Core", "src\QuotaOrb.Core\QuotaOrb.Core.csproj", "{A5937579-77D1-4659-8866-84313D00A1A0}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{A85556EC-F36B-4E4F-B081-FC29C250BD69}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "QuotaOrb.Core.Tests", "tests\QuotaOrb.Core.Tests\QuotaOrb.Core.Tests.csproj", "{FAECAFCE-A7C6-45F9-A386-9C7D314E090C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "QuotaOrb.Windows", "src\QuotaOrb.Windows\QuotaOrb.Windows.csproj", "{F5432457-F6B9-410F-8CBA-50B49E06C4D1}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "QuotaOrb.Windows.Tests", "tests\QuotaOrb.Windows.Tests\QuotaOrb.Windows.Tests.csproj", "{D77D7335-BC72-4111-AC6C-6530C69184F7}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{A5937579-77D1-4659-8866-84313D00A1A0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A5937579-77D1-4659-8866-84313D00A1A0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A5937579-77D1-4659-8866-84313D00A1A0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A5937579-77D1-4659-8866-84313D00A1A0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{FAECAFCE-A7C6-45F9-A386-9C7D314E090C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FAECAFCE-A7C6-45F9-A386-9C7D314E090C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FAECAFCE-A7C6-45F9-A386-9C7D314E090C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FAECAFCE-A7C6-45F9-A386-9C7D314E090C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F5432457-F6B9-410F-8CBA-50B49E06C4D1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F5432457-F6B9-410F-8CBA-50B49E06C4D1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F5432457-F6B9-410F-8CBA-50B49E06C4D1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F5432457-F6B9-410F-8CBA-50B49E06C4D1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D77D7335-BC72-4111-AC6C-6530C69184F7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D77D7335-BC72-4111-AC6C-6530C69184F7}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D77D7335-BC72-4111-AC6C-6530C69184F7}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D77D7335-BC72-4111-AC6C-6530C69184F7}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{A5937579-77D1-4659-8866-84313D00A1A0} = {D642DD27-657B-4DAA-BA08-D619BBE243BA}
+		{FAECAFCE-A7C6-45F9-A386-9C7D314E090C} = {A85556EC-F36B-4E4F-B081-FC29C250BD69}
+		{F5432457-F6B9-410F-8CBA-50B49E06C4D1} = {D642DD27-657B-4DAA-BA08-D619BBE243BA}
+		{D77D7335-BC72-4111-AC6C-6530C69184F7} = {A85556EC-F36B-4E4F-B081-FC29C250BD69}
+	EndGlobalSection
+EndGlobal
