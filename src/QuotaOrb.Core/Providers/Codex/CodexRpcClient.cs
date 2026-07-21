@@ -43,7 +43,7 @@ public sealed class CodexRpcClient : IAsyncDisposable
                     clientInfo = new
                     {
                         name = "balance-capsule-windows",
-                        version = "1.2.15"
+                        version = "BalanceCapsule-win.15"
                     }
                 },
                 cancellationToken)

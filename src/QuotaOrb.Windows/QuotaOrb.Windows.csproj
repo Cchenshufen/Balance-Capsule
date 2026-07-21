@@ -6,9 +6,10 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <Version>1.2.15</Version>
-    <AssemblyVersion>1.2.15.0</AssemblyVersion>
-    <FileVersion>1.2.15.16</FileVersion>
+    <Version>15.0.0</Version>
+    <AssemblyVersion>15.0.0.0</AssemblyVersion>
+    <FileVersion>15.0.0.0</FileVersion>
+    <InformationalVersion>BalanceCapsule-win.15</InformationalVersion>
     <AssemblyName>BalanceCapsule</AssemblyName>
     <Product>Balance Capsule</Product>
     <Title>Balance Capsule</Title>

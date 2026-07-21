@@ -10,8 +10,8 @@ binary_dir="$contents/MacOS"
 resource_dir="$contents/Resources"
 build_root="$artifact_root/build"
 stage_root="$artifact_root/dmg-stage"
-dmg_path="$artifact_root/BalanceCapsule-1.2.15-mac.14-arm64.dmg"
-zip_path="$artifact_root/BalanceCapsule-1.2.15-mac.14-arm64.zip"
+dmg_path="$artifact_root/BalanceCapsule-mac.15-arm64.dmg"
+zip_path="$artifact_root/BalanceCapsule-mac.15-arm64.zip"
 sources=("$project_root"/macos/QuotaOrbMac/*.swift)
 
 mkdir -p "$artifact_root" "$binary_dir" "$resource_dir" "$build_root"

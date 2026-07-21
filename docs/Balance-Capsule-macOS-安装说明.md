@@ -1,8 +1,8 @@
 # Balance Capsule 安装说明
 
-版本：`1.2.15-mac.14 · macOS 26+`
+版本：`BalanceCapsule-mac.15 · macOS 26+`
 
-1. 打开 `BalanceCapsule-1.2.15-mac.14-arm64.dmg`。
+1. 打开 `BalanceCapsule-mac.15-arm64.dmg`。
 2. 将 **Balance Capsule.app** 拖入 **Applications**。
 3. 本地包没有 Apple Developer ID 公证。首次启动请在 Finder 的“应用程序”中右键 **Balance Capsule**，选择“打开”，再确认一次。
 4. 拖动收起的玻璃球，或拖动展开后的胶囊面板，即可改变屏幕位置；释放后自动吸附边缘并保存位置。

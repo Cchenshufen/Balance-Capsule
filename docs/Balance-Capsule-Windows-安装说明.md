@@ -1,9 +1,9 @@
 # Balance Capsule Windows 安装说明
 
-版本：`1.2.15-win.16`
+版本：`BalanceCapsule-win.15`
 
-1. 直接下载并运行 `BalanceCapsule-1.2.15-win.16-x64.exe`，不需要单独安装 .NET。
-2. 若安全软件阻止单文件启动，请改用 `BalanceCapsule-1.2.15-win.16-x64.zip`。
+1. 直接下载并运行 `BalanceCapsule-win.15-x64.exe`，不需要单独安装 .NET。
+2. 若安全软件阻止单文件启动，请改用 `BalanceCapsule-win.15-x64.zip`。
 3. 完整解压 ZIP 后双击其中的 `BalanceCapsule.exe`；不要在压缩包预览窗口内直接运行。
 4. 本地构建没有商业代码签名；若 SmartScreen 出现提示，请选择“更多信息”后确认运行。
 5. 拖动悬浮球可调整位置，鼠标滑入自动打开详情，双击悬浮球立即刷新。

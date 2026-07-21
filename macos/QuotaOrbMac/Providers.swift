@@ -87,7 +87,7 @@ enum CodexRPCProvider {
                 [
                     "id": 1,
                     "method": "initialize",
-                    "params": ["clientInfo": ["name": "balance-capsule-macos", "version": "1.2.15"]]
+                    "params": ["clientInfo": ["name": "balance-capsule-macos", "version": "BalanceCapsule-mac.15"]]
                 ],
                 to: input.fileHandleForWriting
             )
