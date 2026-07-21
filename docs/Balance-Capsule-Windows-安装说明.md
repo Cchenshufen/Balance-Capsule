@@ -1,12 +1,15 @@
 # Balance Capsule Windows 安装说明
 
-版本：`1.2.15-win.13`
+版本：`1.2.15-win.14`
 
-1. 解压 `BalanceCapsule-1.2.15-win.13-x64.zip`。
-2. 双击 `BalanceCapsule.exe`。这是 Windows x64 自包含单文件，不需要单独安装 .NET。
-3. 本地构建没有商业代码签名；若 SmartScreen 出现提示，请选择“更多信息”后确认运行。
-4. 拖动悬浮球可调整位置，鼠标滑入自动打开详情，双击悬浮球立即刷新。
-5. 右键悬浮球或任务栏托盘图标可切换 Codex/Claude Code、刷新、设置开机启动或退出。
+1. 推荐下载并完整解压 `BalanceCapsule-1.2.15-win.14-x64.zip`。
+2. 双击解压目录中的 `BalanceCapsule.exe`。ZIP 是 Windows 11 x64 多文件自包含版本，不需要单独安装 .NET，也不依赖单文件自解压。
+3. 也可使用 `BalanceCapsule-1.2.15-win.14-x64.exe` 单文件版；若安全软件阻止自解压，请改用 ZIP。
+4. 本地构建没有商业代码签名；若 SmartScreen 出现提示，请选择“更多信息”后确认运行。
+5. 拖动悬浮球可调整位置，鼠标滑入自动打开详情，双击悬浮球立即刷新。
+6. 右键悬浮球或任务栏托盘图标可切换 Codex/Claude Code、刷新、设置开机启动或退出。
+
+如果启动失败，程序会显示错误提示，并将诊断信息写入 `%LOCALAPPDATA%\BalanceCapsule\startup.log`。
 
 ## 数据说明
 
@@ -17,8 +20,7 @@
 
 ## 系统要求
 
-- Windows 10 版本 2004（build 19041）或更新版本
-- Windows 11
+- Windows 11（build 22000）或更新版本
 - x64 处理器
 
 界面由 WPF 矢量、Windows Acrylic 与实时动画绘制，不使用效果截图贴图。

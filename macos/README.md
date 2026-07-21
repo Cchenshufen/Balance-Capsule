@@ -1,6 +1,6 @@
 # Balance Capsule for macOS
 
-这是 Balance Capsule 的原生 AppKit 版本，最低支持 macOS 13，仅支持 Apple Silicon（arm64）。液体玻璃界面、液位、气泡、刻度、连接颈部、展开动画和进度条全部由代码实时绘制，不使用效果图贴图。
+这是 Balance Capsule 的原生 AppKit 版本，最低支持 macOS 26，仅支持 Apple Silicon（arm64）。液体玻璃界面、液位、气泡、刻度、连接颈部、展开动画和进度条全部由代码实时绘制，不使用效果图贴图。
 
 ## 已移植功能
 

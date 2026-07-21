@@ -7,6 +7,18 @@ namespace QuotaOrb.Core.Tests.Providers.Detection;
 public sealed class CcSwitchSqliteDataSourceTests
 {
     [Fact]
+    public async Task ReadCurrentProvider_WhenDatabaseIsMissing_ReturnsNullWithoutLoadingSqlite()
+    {
+        using var directory = new TemporaryDirectory();
+        var source = new CcSwitchSqliteDataSource(
+            Path.Combine(directory.Root, "missing-cc-switch.db"));
+
+        var provider = await source.ReadCurrentCodexProviderAsync();
+
+        Assert.Null(provider);
+    }
+
+    [Fact]
     public async Task ReadCurrentProvider_UsesReadOnlyDatabaseAndReturnsCredentialOnDemand()
     {
         using var directory = new TemporaryDirectory();

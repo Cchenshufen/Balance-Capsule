@@ -558,7 +558,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func showAbout() {
         showAlert(
             title: "Balance Capsule for macOS",
-            message: "版本 1.2.15-mac.13 · Full-Bleed Glass Icon\n\n应用图标改为全画布液态玻璃，避免系统补灰色外框或形成双层方块；详情百分号已收紧，Token 统一使用万和亿。"
+            message: "版本 1.2.15-mac.14 · macOS 26+\n\n最低支持 macOS 26；应用图标使用全画布液态玻璃，详情百分号已收紧，Token 统一使用万和亿。"
         )
     }
 

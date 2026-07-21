@@ -1,8 +1,8 @@
 # Balance Capsule 安装说明
 
-版本：`1.2.15-mac.13 · Full-Bleed Glass Icon`
+版本：`1.2.15-mac.14 · macOS 26+`
 
-1. 打开 `BalanceCapsule-1.2.15-mac.13-arm64.dmg`。
+1. 打开 `BalanceCapsule-1.2.15-mac.14-arm64.dmg`。
 2. 将 **Balance Capsule.app** 拖入 **Applications**。
 3. 本地包没有 Apple Developer ID 公证。首次启动请在 Finder 的“应用程序”中右键 **Balance Capsule**，选择“打开”，再确认一次。
 4. 拖动收起的玻璃球，或拖动展开后的胶囊面板，即可改变屏幕位置；释放后自动吸附边缘并保存位置。
@@ -30,7 +30,7 @@ mac.13 修正 macOS 对透明图标自动补灰底的问题：液态玻璃现在
 
 ## 支持范围
 
-- macOS 13 或更新版本
+- macOS 26 或更新版本
 - 仅支持 Apple Silicon（M1、M2、M3、M4 或后续 arm64 芯片），不支持 Intel Mac
 - Codex 官方额度
 - Codex 当前登录账号的今日、本月和累计 Token

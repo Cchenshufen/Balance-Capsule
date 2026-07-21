@@ -4,6 +4,10 @@ namespace QuotaOrb.Core.Providers.Detection;
 
 public sealed class CcSwitchSqliteDataSource : ICcSwitchDataSource, IClaudeCcSwitchDataSource
 {
+    private static readonly object ProviderSync = new();
+    private static bool _providerInitializationAttempted;
+    private static bool _providerAvailable;
+
     private const string CurrentProviderQuery = """
         SELECT p.id, p.name, p.settings_config, p.meta,
                pc.listen_address, pc.listen_port
@@ -22,11 +26,6 @@ public sealed class CcSwitchSqliteDataSource : ICcSwitchDataSource, IClaudeCcSwi
         """;
 
     private readonly string _databasePath;
-
-    static CcSwitchSqliteDataSource()
-    {
-        SQLitePCL.raw.SetProvider(new SQLitePCL.SQLite3Provider_winsqlite3());
-    }
 
     public CcSwitchSqliteDataSource(string? databasePath = null)
     {
@@ -88,6 +87,11 @@ public sealed class CcSwitchSqliteDataSource : ICcSwitchDataSource, IClaudeCcSwi
             return null;
         }
 
+        if (!EnsureProviderAvailable())
+        {
+            return null;
+        }
+
         var connectionString = new SqliteConnectionStringBuilder
         {
             DataSource = _databasePath,
@@ -126,5 +130,29 @@ public sealed class CcSwitchSqliteDataSource : ICcSwitchDataSource, IClaudeCcSwi
             reader.GetString(3),
             reader.GetString(4),
             reader.GetInt32(5));
+    }
+
+    private static bool EnsureProviderAvailable()
+    {
+        lock (ProviderSync)
+        {
+            if (_providerInitializationAttempted)
+            {
+                return _providerAvailable;
+            }
+
+            _providerInitializationAttempted = true;
+            try
+            {
+                SQLitePCL.raw.SetProvider(new SQLitePCL.SQLite3Provider_winsqlite3());
+                _providerAvailable = true;
+            }
+            catch (Exception)
+            {
+                _providerAvailable = false;
+            }
+
+            return _providerAvailable;
+        }
     }
 }

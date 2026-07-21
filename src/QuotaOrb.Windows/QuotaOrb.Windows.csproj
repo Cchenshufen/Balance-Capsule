@@ -8,13 +8,14 @@
     <OutputType>WinExe</OutputType>
     <Version>1.2.15</Version>
     <AssemblyVersion>1.2.15.0</AssemblyVersion>
-    <FileVersion>1.2.15.13</FileVersion>
+    <FileVersion>1.2.15.14</FileVersion>
     <AssemblyName>BalanceCapsule</AssemblyName>
     <Product>Balance Capsule</Product>
     <Title>Balance Capsule</Title>
     <Description>Windows AI Agent 账号额度与 Token 液态玻璃悬浮球</Description>
     <ApplicationIcon>Assets\BalanceCapsule.ico</ApplicationIcon>
-    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <TargetFramework>net8.0-windows10.0.22000.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.22000.0</SupportedOSPlatformVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
@@ -24,7 +25,7 @@
     <SelfContained>true</SelfContained>
     <PublishSingleFile>true</PublishSingleFile>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
-    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <EnableCompressionInSingleFile>false</EnableCompressionInSingleFile>
     <PublishReadyToRun>false</PublishReadyToRun>
   </PropertyGroup>
 

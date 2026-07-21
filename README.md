@@ -1,10 +1,12 @@
 # Balance Capsule
 
-一款精致、轻量、常驻桌面的 AI Agent 配额悬浮球。无需打开设置页，即可查看 Codex、Claude Code 官方额度。
+一款精致、轻量、常驻桌面的 AI Agent 配额悬浮球。无需打开设置页，即可查看 Codex、Claude Code 官方额度，或 DeepSeek、OpenRouter 第三方 API 余额。
 
-![macOS Apple Silicon](https://img.shields.io/badge/macOS-13%2B%20Apple%20Silicon-111111?style=flat-square&logo=apple)
-![Windows x64](https://img.shields.io/badge/Windows-10%2F11%20x64-1674CE?style=flat-square&logo=windows11)
-![Release](https://img.shields.io/badge/release-v1.2.15-4CAEFF?style=flat-square)
+![macOS Apple Silicon](https://img.shields.io/badge/macOS-26%2B%20Apple%20Silicon-111111?style=flat-square&logo=apple)
+![Windows x64](https://img.shields.io/badge/Windows-11%20x64-1674CE?style=flat-square&logo=windows11)
+![Release](https://img.shields.io/badge/release-v1.2.15.14-4CAEFF?style=flat-square)
+
+> Balance Capsule 是独立开发的本机工具，与 OpenAI、Anthropic、DeepSeek 或 OpenRouter 没有隶属、合作或背书关系。
 
 ## 下载
 
@@ -12,8 +14,8 @@
 
 | 平台 | 系统要求 | 下载文件 |
 | --- | --- | --- |
-| macOS | macOS 13 或更高版本，仅 Apple Silicon | [下载.dmg](https://github.com/Cchenshufen/Balance-Capsule/releases/latest/download/BalanceCapsule-1.2.15-mac.13-arm64.dmg) |
-| Windows | Windows 10 2004 或更高版本 / Windows 11，仅 x64 | [下载.exe](https://github.com/Cchenshufen/Balance-Capsule/releases/latest/download/BalanceCapsule-1.2.15-win.13-x64.exe) |
+| macOS | macOS 26 或更高版本，仅 Apple Silicon | [下载 DMG](https://github.com/Cchenshufen/Balance-Capsule/releases/latest/download/BalanceCapsule-1.2.15-mac.14-arm64.dmg) |
+| Windows | 仅 Windows 11 x64 | [下载便携 ZIP（推荐）](https://github.com/Cchenshufen/Balance-Capsule/releases/latest/download/BalanceCapsule-1.2.15-win.14-x64.zip) |
 
 同时提供 macOS ZIP 和 Windows 便携 ZIP。请使用 Release 中的 `SHA256SUMS.txt` 校验下载文件。
 
@@ -55,16 +57,17 @@
 
 ### macOS
 
-1. 下载并打开 `BalanceCapsule-1.2.15-mac.13-arm64.dmg`。
+1. 下载并打开 `BalanceCapsule-1.2.15-mac.14-arm64.dmg`。
 2. 将 **Balance Capsule** 拖入 Applications。
 3. 首次启动时，在 Finder 中右键应用并选择“打开”。本地发布包使用 ad-hoc 签名，未进行 Apple Developer ID 公证。
 4. 保持 Codex 或 Claude Code 已登录；将鼠标滑到悬浮球上查看详情。
 
 ### Windows
 
-1. 下载并运行 `BalanceCapsule-1.2.15-win.13-x64.exe`；也可下载 ZIP 解压后运行。
-2. 当前版本未使用商业代码签名。若 SmartScreen 提示未知发布者，请核对来源和 SHA-256 后选择“更多信息”继续运行。
-3. 保持 Codex 或 Claude Code 已登录；将鼠标滑到悬浮球上查看详情。
+1. 推荐下载 `BalanceCapsule-1.2.15-win.14-x64.zip`，完整解压后运行其中的 `BalanceCapsule.exe`。ZIP 使用多文件自包含布局，不依赖单文件自解压。
+2. 也可直接下载 `BalanceCapsule-1.2.15-win.14-x64.exe` 单文件版。若安全软件阻止单文件自解压，请改用 ZIP。
+3. 当前版本未使用商业代码签名。若 SmartScreen 提示未知发布者，请核对来源和 SHA-256 后选择“更多信息”继续运行。
+4. 保持 Codex 或 Claude Code 已登录；将鼠标滑到悬浮球上查看详情。
 
 ### 通用操作
 
@@ -97,15 +100,15 @@ Claude Code 模式通过官方 `statusLine` 数据读取其返回的额度信息
 
 ## 系统要求
 
-### macOS 版 `1.2.15-mac.13`
+### macOS 版 `1.2.15-mac.14`
 
-- macOS 13 Ventura 或更高版本。
+- macOS 26 或更高版本。
 - Apple Silicon：M1、M2、M3、M4 或后续 arm64 芯片。
 - 不支持 Intel Mac。
 
-### Windows 版 `1.2.15-win.13`
+### Windows 版 `1.2.15-win.14`
 
-- Windows 10 版本 2004（build 19041）或更高版本，或 Windows 11。
+- Windows 11（build 22000）或更高版本。
 - x64 处理器。
 - 自包含 .NET 8 运行时，无需另外安装 .NET SDK。
 - 不支持 Windows ARM 原生运行。

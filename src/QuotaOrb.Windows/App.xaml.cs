@@ -37,6 +37,17 @@ public partial class App : System.Windows.Application
     {
         base.OnStartup(e);
 
+        if (!OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000))
+        {
+            System.Windows.MessageBox.Show(
+                "Balance Capsule 1.2.15-win.14 仅支持 Windows 11 x64。",
+                "Balance Capsule",
+                System.Windows.MessageBoxButton.OK,
+                System.Windows.MessageBoxImage.Information);
+            Shutdown(-1);
+            return;
+        }
+
         if (!_singleInstance.TryAcquire())
         {
             Shutdown(0);
@@ -47,8 +58,9 @@ public partial class App : System.Windows.Application
         {
             await InitializeApplicationAsync().ConfigureAwait(true);
         }
-        catch (Exception)
+        catch (Exception exception)
         {
+            var logPath = WriteStartupError(exception);
             if (_viewModel is not null && _orbWindow is not null)
             {
                 ShowUiError("startup", "Balance Capsule 启动失败，请检查本机环境后重试。");
@@ -59,9 +71,34 @@ public partial class App : System.Windows.Application
             }
             else
             {
+                System.Windows.MessageBox.Show(
+                    $"Balance Capsule 启动失败。\n\n诊断日志：{logPath}",
+                    "Balance Capsule",
+                    System.Windows.MessageBoxButton.OK,
+                    System.Windows.MessageBoxImage.Error);
                 await CleanupAsync().ConfigureAwait(true);
                 Shutdown(-1);
             }
+        }
+    }
+
+    private static string WriteStartupError(Exception exception)
+    {
+        var root = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "BalanceCapsule");
+        var logPath = Path.Combine(root, "startup.log");
+        try
+        {
+            Directory.CreateDirectory(root);
+            File.AppendAllText(
+                logPath,
+                $"[{DateTimeOffset.Now:O}] {exception}\n\n");
+            return logPath;
+        }
+        catch (Exception)
+        {
+            return "无法写入启动日志";
         }
     }
 
