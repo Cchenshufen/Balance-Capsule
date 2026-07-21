@@ -14,8 +14,8 @@
 
 | 平台 | 系统要求 | 下载文件 |
 | --- | --- | --- |
-| macOS | macOS 26 或更高版本，仅 Apple Silicon | [下载 DMG](https://github.com/Cchenshufen/Balance-Capsule/releases/latest/download/BalanceCapsule-1.2.15-mac.14-arm64.dmg) |
-| Windows | 仅 Windows 11 x64 | [下载便携 ZIP（推荐）](https://github.com/Cchenshufen/Balance-Capsule/releases/latest/download/BalanceCapsule-1.2.15-win.14-x64.zip) |
+| macOS | macOS 26 或更高版本，仅 Apple Silicon | [下载 DMG](https://github.com/Cchenshufen/Balance-Capsule/releases/download/v1.2.15.14/BalanceCapsule-1.2.15-mac.14-arm64.dmg) |
+| Windows | 仅 Windows 11 x64 | [下载便携 ZIP（推荐）](https://github.com/Cchenshufen/Balance-Capsule/releases/download/v1.2.15.14/BalanceCapsule-1.2.15-win.14-x64.zip) |
 
 同时提供 macOS ZIP 和 Windows 便携 ZIP。请使用 Release 中的 `SHA256SUMS.txt` 校验下载文件。
 
