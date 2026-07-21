@@ -40,7 +40,7 @@ public partial class App : System.Windows.Application
         if (!OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000))
         {
             System.Windows.MessageBox.Show(
-                "Balance Capsule 1.2.15-win.15 仅支持 Windows 11 x64。",
+                "Balance Capsule 1.2.15-win.16 仅支持 Windows 11 x64。",
                 "Balance Capsule",
                 System.Windows.MessageBoxButton.OK,
                 System.Windows.MessageBoxImage.Information);

@@ -28,15 +28,9 @@ public sealed class DetailFlyoutWindowTests
 
             var badge = Assert.IsType<System.Windows.Controls.Border>(
                 window.FindName("StatusBadge"));
-            var badgeText = Assert.IsType<System.Windows.Controls.TextBlock>(
-                window.FindName("StatusBadgeText"));
-
             Assert.Equal(
-                System.Windows.Media.Color.FromRgb(0xFF, 0xE8, 0xEA),
+                System.Windows.Media.Color.FromRgb(0xF2, 0x7A, 0x87),
                 Assert.IsType<System.Windows.Media.SolidColorBrush>(badge.Background).Color);
-            Assert.Equal(
-                System.Windows.Media.Color.FromRgb(0xA1, 0x4D, 0x58),
-                Assert.IsType<System.Windows.Media.SolidColorBrush>(badgeText.Foreground).Color);
         });
     }
 
@@ -55,6 +49,35 @@ public sealed class DetailFlyoutWindowTests
             Assert.NotNull(window.FindName("WeeklyMetricTile"));
             Assert.NotNull(window.FindName("CurrentMetricLabel"));
             Assert.NotNull(window.FindName("WeeklyMetricLabel"));
+        });
+    }
+
+    [Fact]
+    public void Constructor_MatchesMacGlassTypographyAndErrorPresentation()
+    {
+        RunInSta(() =>
+        {
+            var window = new DetailFlyoutWindow(new OrbViewModel());
+            var title = Assert.IsType<System.Windows.Controls.TextBlock>(
+                window.FindName("TitleText"));
+            var agentBadge = Assert.IsType<System.Windows.Controls.Border>(
+                window.FindName("AgentBadge"));
+            var errorPresentation = Assert.IsType<System.Windows.Controls.Border>(
+                window.FindName("ErrorPresentation"));
+            var silhouette = Assert.IsType<System.Windows.Shapes.Path>(
+                window.FindName("GlassSilhouette"));
+            var glassFill = Assert.IsType<System.Windows.Media.LinearGradientBrush>(
+                silhouette.Fill);
+
+            Assert.Equal(17d, title.FontSize);
+            Assert.Equal(System.Windows.FontWeights.Normal, title.FontWeight);
+            Assert.Equal(78d, agentBadge.Width);
+            Assert.Equal(System.Windows.Media.Colors.Transparent,
+                Assert.IsType<System.Windows.Media.SolidColorBrush>(
+                    errorPresentation.Background).Color);
+            Assert.Equal(0d, errorPresentation.BorderThickness.Left);
+            Assert.Equal(0x52, glassFill.GradientStops[0].Color.A);
+            Assert.Equal(0x24, glassFill.GradientStops[^1].Color.A);
         });
     }
 

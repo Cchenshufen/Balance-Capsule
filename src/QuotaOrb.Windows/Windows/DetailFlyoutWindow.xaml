@@ -112,24 +112,56 @@
         <Path x:Name="GlassSilhouette"
               Margin="0"
               Stretch="Fill"
-              Stroke="#EFFFFFFF"
-              StrokeThickness="1.2"
+              Stroke="#B8FFFFFF"
+              StrokeThickness="1"
               Data="M42,1 H294 C306,1 315,10 315,22 V166 C315,178 306,187 294,187 H42 C30,187 20,178 20,166 V120 C15,116 8,114 1,108 V80 C8,74 15,72 20,68 V22 C20,10 30,1 42,1 Z">
             <Path.Fill>
                 <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                    <GradientStop Offset="0" Color="#D8FFFFFF" />
-                    <GradientStop Offset="0.48" Color="#A6EAF7FD" />
-                    <GradientStop Offset="0.76" Color="#90DDEFFC" />
-                    <GradientStop Offset="1" Color="#A8F4EEFF" />
+                    <GradientStop Offset="0" Color="#52FFFFFF" />
+                    <GradientStop Offset="0.48" Color="#28EAF7FD" />
+                    <GradientStop Offset="0.76" Color="#18DDEFFC" />
+                    <GradientStop Offset="1" Color="#24F4EEFF" />
                 </LinearGradientBrush>
             </Path.Fill>
             <Path.Effect>
-                <DropShadowEffect BlurRadius="24"
-                                  ShadowDepth="7"
-                                  Opacity="0.22"
+                <DropShadowEffect BlurRadius="18"
+                                  ShadowDepth="5"
+                                  Opacity="0.16"
                                   Color="#244C6C" />
             </Path.Effect>
         </Path>
+
+        <Path Margin="0"
+              Stretch="Fill"
+              Fill="Transparent"
+              Stroke="#2938C2FF"
+              StrokeThickness="0.65"
+              IsHitTestVisible="False"
+              Data="M42,1 H294 C306,1 315,10 315,22 V166 C315,178 306,187 294,187 H42 C30,187 20,178 20,166 V120 C15,116 8,114 1,108 V80 C8,74 15,72 20,68 V22 C20,10 30,1 42,1 Z">
+            <Path.RenderTransform>
+                <TranslateTransform X="-0.55" />
+            </Path.RenderTransform>
+        </Path>
+
+        <Path Margin="0"
+              Stretch="Fill"
+              Fill="Transparent"
+              Stroke="#17FF617F"
+              StrokeThickness="0.55"
+              IsHitTestVisible="False"
+              Data="M42,1 H294 C306,1 315,10 315,22 V166 C315,178 306,187 294,187 H42 C30,187 20,178 20,166 V120 C15,116 8,114 1,108 V80 C8,74 15,72 20,68 V22 C20,10 30,1 42,1 Z">
+            <Path.RenderTransform>
+                <TranslateTransform X="0.55" />
+            </Path.RenderTransform>
+        </Path>
+
+        <Path Margin="0"
+              Stretch="Fill"
+              Fill="Transparent"
+              Stroke="#B8FFFFFF"
+              StrokeThickness="0.8"
+              IsHitTestVisible="False"
+              Data="M47,5 H285" />
 
         <Border x:Name="GlassConsoleBorder"
                 Margin="20,0,0,0"
@@ -144,17 +176,17 @@
                          Margin="-55,-74,0,0"
                          HorizontalAlignment="Left"
                          VerticalAlignment="Top"
-                         Fill="#56FFFFFF" />
+                         Fill="#32FFFFFF" />
                 <Path HorizontalAlignment="Right"
                       VerticalAlignment="Stretch"
                       Width="145"
-                      Opacity="0.20"
+                      Opacity="0.12"
                       Fill="#B6E6FFFF"
                       Data="M0,0 L145,0 L145,192 L86,192 C110,130 72,72 0,0 Z" />
                 <Border Margin="2"
                         Padding="20,13,20,10"
-                        BorderBrush="#9AFFFFFF"
-                        BorderThickness="1"
+                        BorderBrush="#70FFFFFF"
+                        BorderThickness="0.8"
                         CornerRadius="20">
                     <Grid>
                         <Grid.RowDefinitions>
@@ -167,32 +199,34 @@
                         </Grid.RowDefinitions>
 
                         <Grid Grid.Row="0">
-                            <TextBlock Text="Balance Capsule"
+                            <TextBlock x:Name="TitleText"
+                                       Text="Balance Capsule"
                                        VerticalAlignment="Center"
                                        FontFamily="Segoe UI Variable Display, Microsoft YaHei UI"
-                                       FontSize="16"
-                                       FontWeight="SemiBold"
+                                       FontSize="17"
+                                       FontWeight="Normal"
                                        Foreground="#0B3762" />
                             <Border x:Name="StatusBadge"
                                     Width="9"
                                     Height="9"
                                     HorizontalAlignment="Right"
                                     VerticalAlignment="Center"
-                                    Background="#FFFFA261"
+                                    Background="{Binding StatusBrush}"
                                     BorderBrush="#EFFFFFFF"
                                     BorderThickness="1"
                                     CornerRadius="5">
                                 <TextBlock x:Name="StatusBadgeText"
                                            Text=""
-                                           FontSize="1" />
+                                           FontSize="1"
+                                           Foreground="#A14D58" />
                             </Border>
                         </Grid>
 
                         <Border x:Name="AgentBadge"
                                 Grid.Row="1"
-                                Width="86"
+                                Width="78"
                                 Height="22"
-                                Padding="8,2"
+                                Padding="6,2"
                                 HorizontalAlignment="Left"
                                 VerticalAlignment="Center"
                                 Background="#8CFFFFFF"
@@ -200,11 +234,26 @@
                                 BorderThickness="1"
                                 CornerRadius="11">
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                <TextBlock Text="⌁"
-                                           Margin="0,-1,5,0"
-                                           FontSize="15"
-                                           FontWeight="Bold"
-                                           Foreground="#2FA7FF" />
+                                <Canvas Width="16" Height="12" Margin="0,0,4,0" VerticalAlignment="Center">
+                                    <Polyline Points="1,3 6,0 11,3"
+                                              Stroke="#2FA7FF"
+                                              StrokeThickness="1.2"
+                                              StrokeStartLineCap="Round"
+                                              StrokeEndLineCap="Round"
+                                              StrokeLineJoin="Round" />
+                                    <Polyline Points="1,5.5 6,2.5 11,5.5"
+                                              Stroke="#2FA7FF"
+                                              StrokeThickness="1.2"
+                                              StrokeStartLineCap="Round"
+                                              StrokeEndLineCap="Round"
+                                              StrokeLineJoin="Round" />
+                                    <Polyline Points="1,8 6,5 11,8"
+                                              Stroke="#2FA7FF"
+                                              StrokeThickness="1.2"
+                                              StrokeStartLineCap="Round"
+                                              StrokeEndLineCap="Round"
+                                              StrokeLineJoin="Round" />
+                                </Canvas>
                                 <TextBlock Text="{Binding AgentName}"
                                            VerticalAlignment="Center"
                                            FontFamily="Segoe UI Variable Text, Microsoft YaHei UI"
@@ -285,9 +334,36 @@
                             </StackPanel>
                         </Grid>
 
-                        <Border Grid.Row="3" Background="#9AFFFFFF" />
+                        <Border Grid.Row="3" Background="#9AFFFFFF">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding HasError}" Value="True">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding HasNotice}" Value="True">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                        </Border>
 
                         <Grid Grid.Row="4" Margin="0,4,0,1">
+                            <Grid.Style>
+                                <Style TargetType="Grid">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding HasError}" Value="True">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding HasNotice}" Value="True">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Grid.Style>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
@@ -365,39 +441,35 @@
 
                         <Border Grid.Row="2"
                                 Grid.RowSpan="3"
-                                Padding="12"
+                                x:Name="ErrorPresentation"
+                                Padding="0,12"
                                 VerticalAlignment="Stretch"
-                                Background="#D6FFF1F2"
-                                BorderBrush="#8CF4B8BE"
-                                BorderThickness="1"
-                                CornerRadius="13"
+                                Background="Transparent"
+                                BorderBrush="Transparent"
+                                BorderThickness="0"
                                 Visibility="{Binding HasError, Converter={StaticResource BooleanToVisibility}}">
                             <StackPanel VerticalAlignment="Center">
-                                <TextBlock Text="读取失败"
-                                           FontSize="12"
-                                           FontWeight="Bold"
-                                           Foreground="#A14D58" />
-                                <TextBlock Margin="0,5,0,0"
-                                           Text="{Binding ErrorMessage}"
+                                <TextBlock Text="{Binding ErrorMessage}"
                                            TextWrapping="Wrap"
-                                           FontSize="9"
-                                           Foreground="#A55E67" />
+                                           FontFamily="Segoe UI Variable Text, Microsoft YaHei UI"
+                                           FontSize="11.5"
+                                           FontWeight="Medium"
+                                           Foreground="#94454F" />
                             </StackPanel>
                         </Border>
 
                         <Border Grid.Row="2"
                                 Grid.RowSpan="3"
-                                Padding="12"
+                                Padding="0,12"
                                 VerticalAlignment="Stretch"
-                                Background="#D6EEF7FC"
-                                BorderBrush="#8CB8CEDA"
-                                BorderThickness="1"
-                                CornerRadius="13"
+                                Background="Transparent"
+                                BorderBrush="Transparent"
+                                BorderThickness="0"
                                 Visibility="{Binding HasNotice, Converter={StaticResource BooleanToVisibility}}">
                             <TextBlock Text="{Binding NoticeMessage}"
                                        TextWrapping="Wrap"
                                        VerticalAlignment="Center"
-                                       FontSize="9.5"
+                                       FontSize="11.5"
                                        Foreground="#4F6D80" />
                         </Border>
                     </Grid>

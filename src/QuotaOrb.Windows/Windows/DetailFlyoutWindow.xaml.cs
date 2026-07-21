@@ -92,6 +92,14 @@ public partial class DetailFlyoutWindow : System.Windows.Window
         Closed -= OnClosed;
     }
 
+    protected override void OnDpiChanged(
+        System.Windows.DpiScale oldDpi,
+        System.Windows.DpiScale newDpi)
+    {
+        base.OnDpiChanged(oldDpi, newDpi);
+        LiquidGlassInterop.TryEnable(this, clipToConnectedGlass: true);
+    }
+
     private void OnSourceInitialized(object? sender, EventArgs e) =>
-        LiquidGlassInterop.TryEnable(this);
+        LiquidGlassInterop.TryEnable(this, clipToConnectedGlass: true);
 }

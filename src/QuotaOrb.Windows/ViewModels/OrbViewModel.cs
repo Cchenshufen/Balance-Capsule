@@ -16,6 +16,11 @@ public sealed class OrbViewModel : INotifyPropertyChanged
     private static readonly WpfBrush WarningBrush = CreateBrush(0xF5, 0xD4, 0x9E);
     private static readonly WpfBrush CriticalBrush = CreateBrush(0xF4, 0xAD, 0x9F);
     private static readonly WpfBrush ErrorBrush = CreateBrush(0xF2, 0xA0, 0xA6);
+    private static readonly WpfBrush LoadingStatusBrush = CreateBrush(0x8C, 0xC7, 0xF2);
+    private static readonly WpfBrush SafeStatusBrush = CreateBrush(0xFF, 0x99, 0x52);
+    private static readonly WpfBrush WarningStatusBrush = CreateBrush(0xF5, 0xC9, 0x8A);
+    private static readonly WpfBrush CriticalStatusBrush = CreateBrush(0xF5, 0x91, 0x85);
+    private static readonly WpfBrush ErrorStatusBrush = CreateBrush(0xF2, 0x7A, 0x87);
     private readonly Dispatcher _dispatcher;
     private readonly TimeProvider _timeProvider;
     private DateTimeOffset? _lastSuccessfulAt;
@@ -31,6 +36,7 @@ public sealed class OrbViewModel : INotifyPropertyChanged
         CaptionText = "加载中";
         PaletteKey = "Safe";
         LiquidBrush = SafeBrush;
+        StatusBrush = LoadingStatusBrush;
         CurrentValue = "暂不可用";
         WeeklyValue = "暂不可用";
         CurrentLabel = "当前窗口";
@@ -65,6 +71,8 @@ public sealed class OrbViewModel : INotifyPropertyChanged
     public string PaletteKey { get; private set; }
 
     public WpfBrush LiquidBrush { get; private set; }
+
+    public WpfBrush StatusBrush { get; private set; }
 
     public string CurrentValue { get; private set; }
 
@@ -239,6 +247,7 @@ public sealed class OrbViewModel : INotifyPropertyChanged
             : GetRisk(displayPercent);
         PaletteKey = GetPaletteKey(displayRisk);
         LiquidBrush = GetBrush(displayRisk);
+        StatusBrush = GetStatusBrush(displayRisk);
         DisplayText = state.Risk switch
         {
             QuotaRisk.Error => "!",
@@ -304,6 +313,7 @@ public sealed class OrbViewModel : INotifyPropertyChanged
             : CaptionText;
         PaletteKey = "Safe";
         LiquidBrush = SafeBrush;
+        StatusBrush = SafeStatusBrush;
         ShowsPercent = false;
         HasFiveHourQuota = false;
         HasWeeklyQuota = false;
@@ -333,6 +343,7 @@ public sealed class OrbViewModel : INotifyPropertyChanged
         StatusText = "暂不支持";
         PaletteKey = "Safe";
         LiquidBrush = SafeBrush;
+        StatusBrush = SafeStatusBrush;
         ShowsPercent = false;
         HasFiveHourQuota = false;
         HasWeeklyQuota = false;
@@ -456,6 +467,15 @@ public sealed class OrbViewModel : INotifyPropertyChanged
         QuotaRisk.Critical => CriticalBrush,
         QuotaRisk.Error => ErrorBrush,
         _ => SafeBrush
+    };
+
+    private static WpfBrush GetStatusBrush(QuotaRisk risk) => risk switch
+    {
+        QuotaRisk.Safe => SafeStatusBrush,
+        QuotaRisk.Warning => WarningStatusBrush,
+        QuotaRisk.Critical => CriticalStatusBrush,
+        QuotaRisk.Error => ErrorStatusBrush,
+        _ => LoadingStatusBrush
     };
 
     private static WpfBrush CreateBrush(byte red, byte green, byte blue)
