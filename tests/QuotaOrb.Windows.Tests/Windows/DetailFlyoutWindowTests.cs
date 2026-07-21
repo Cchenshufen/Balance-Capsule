@@ -59,6 +59,30 @@ public sealed class DetailFlyoutWindowTests
     }
 
     [Fact]
+    public void Constructor_UsesOneWayBindingsForReadOnlyProgressValues()
+    {
+        RunInSta(() =>
+        {
+            var window = new DetailFlyoutWindow(new OrbViewModel());
+            var currentProgress = Assert.IsType<System.Windows.Controls.ProgressBar>(
+                window.FindName("CurrentProgressBar"));
+            var weeklyProgress = Assert.IsType<System.Windows.Controls.ProgressBar>(
+                window.FindName("WeeklyProgressBar"));
+            var currentBinding = System.Windows.Data.BindingOperations.GetBinding(
+                currentProgress,
+                System.Windows.Controls.Primitives.RangeBase.ValueProperty);
+            var weeklyBinding = System.Windows.Data.BindingOperations.GetBinding(
+                weeklyProgress,
+                System.Windows.Controls.Primitives.RangeBase.ValueProperty);
+
+            Assert.NotNull(currentBinding);
+            Assert.NotNull(weeklyBinding);
+            Assert.Equal(System.Windows.Data.BindingMode.OneWay, currentBinding.Mode);
+            Assert.Equal(System.Windows.Data.BindingMode.OneWay, weeklyBinding.Mode);
+        });
+    }
+
+    [Fact]
     public void Constructor_WithOpenRouterBalance_ShowsOnlyBalanceAndProviderMetrics()
     {
         RunInSta(() =>

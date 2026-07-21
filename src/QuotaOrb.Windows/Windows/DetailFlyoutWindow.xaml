@@ -314,8 +314,9 @@
                                                VerticalAlignment="Center"
                                                FontSize="11"
                                                Foreground="#163E66" />
-                                    <ProgressBar Grid.Column="1"
-                                                 Value="{Binding CurrentRemainingPercent}"
+                                    <ProgressBar x:Name="CurrentProgressBar"
+                                                 Grid.Column="1"
+                                                 Value="{Binding CurrentRemainingPercent, Mode=OneWay}"
                                                  Style="{StaticResource GlassProgress}" />
                                     <TextBlock x:Name="CurrentMetricValue"
                                                Grid.Column="2"
@@ -339,8 +340,9 @@
                                                VerticalAlignment="Center"
                                                FontSize="11"
                                                Foreground="#163E66" />
-                                    <ProgressBar Grid.Column="1"
-                                                 Value="{Binding WeeklyRemainingPercent}"
+                                    <ProgressBar x:Name="WeeklyProgressBar"
+                                                 Grid.Column="1"
+                                                 Value="{Binding WeeklyRemainingPercent, Mode=OneWay}"
                                                  Style="{StaticResource GlassProgress}" />
                                     <TextBlock x:Name="WeeklyMetricValue"
                                                Grid.Column="2"
