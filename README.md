@@ -15,7 +15,7 @@
 | 平台 | 系统要求 | 下载文件 |
 | --- | --- | --- |
 | macOS | macOS 26 或更高版本，仅 Apple Silicon | [下载 DMG](https://github.com/Cchenshufen/Balance-Capsule/releases/download/v1.2.15.15/BalanceCapsule-1.2.15-mac.14-arm64.dmg) |
-| Windows | 仅 Windows 11 x64 | [下载便携 ZIP（推荐）](https://github.com/Cchenshufen/Balance-Capsule/releases/download/v1.2.15.15/BalanceCapsule-1.2.15-win.15-x64.zip) |
+| Windows | 仅 Windows 11 x64 | [直接下载 EXE](https://github.com/Cchenshufen/Balance-Capsule/releases/download/v1.2.15.15/BalanceCapsule-1.2.15-win.15-x64.exe) |
 
 同时提供 macOS ZIP 和 Windows 便携 ZIP。请使用 Release 中的 `SHA256SUMS.txt` 校验下载文件。
 
@@ -64,8 +64,8 @@
 
 ### Windows
 
-1. 推荐下载 `BalanceCapsule-1.2.15-win.15-x64.zip`，完整解压后运行其中的 `BalanceCapsule.exe`。ZIP 使用多文件自包含布局，不依赖单文件自解压。
-2. 也可直接下载 `BalanceCapsule-1.2.15-win.15-x64.exe` 单文件版。若安全软件阻止单文件自解压，请改用 ZIP。
+1. 直接下载并运行 `BalanceCapsule-1.2.15-win.15-x64.exe`，无需安装 .NET。
+2. 若安全软件阻止单文件启动，可改用 `BalanceCapsule-1.2.15-win.15-x64.zip`，完整解压后运行其中的 `BalanceCapsule.exe`。
 3. 当前版本未使用商业代码签名。若 SmartScreen 提示未知发布者，请核对来源和 SHA-256 后选择“更多信息”继续运行。
 4. 保持 Codex 或 Claude Code 已登录；将鼠标滑到悬浮球上查看详情。
 
