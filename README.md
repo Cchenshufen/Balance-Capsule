@@ -3,20 +3,18 @@
 一款精致、轻量、常驻桌面的 AI Agent 配额悬浮球。无需打开设置页，即可查看 Codex 与 Claude Code 的额度和刷新状态。
 
 ![macOS Apple Silicon](https://img.shields.io/badge/macOS-26%2B%20Apple%20Silicon-111111?style=flat-square&logo=apple)
-![Windows x64](https://img.shields.io/badge/Windows-11%20x64-1674CE?style=flat-square&logo=windows11)
 
 > Balance Capsule 目前仅支持 Codex 与 Claude Code。
 
 ## 下载
 
-前往 [Releases](https://github.com/Cchenshufen/Balance-Capsule/releases) 下载对应平台版本：
+当前仅公开 macOS 版本。前往 [Releases](https://github.com/Cchenshufen/Balance-Capsule/releases) 下载：
 
 | 平台 | 系统要求 | 下载文件 |
 | --- | --- | --- |
 | macOS | macOS 26 或更高版本，仅 Apple Silicon | [下载 .dmg](https://github.com/Cchenshufen/Balance-Capsule/releases/latest/download/BalanceCapsule-mac.15-arm64.dmg) |
-| Windows | 仅 Windows 11 x64 | [下载 .exe](https://github.com/Cchenshufen/Balance-Capsule/releases/latest/download/BalanceCapsule-win.15-x64.exe) |
 
-同时提供 macOS ZIP 和 Windows 便携 ZIP。请使用 Release 中的 `SHA256SUMS.txt` 校验下载文件。
+同时提供 macOS ZIP 备用包。请使用 Release 中的 SHA-256 文件校验下载内容。
 
 ## 界面预览
 
@@ -37,7 +35,7 @@
 - 78px 常驻液态玻璃悬浮球，支持自由拖动与屏幕边缘吸附。
 - 鼠标滑入悬浮球自动展开详情，无需点击。
 - 球体与详情面板通过连续液滴颈部自然衔接，包含液面摆动、气泡、刻度、扫光与柔和阴影。
-- macOS 使用 AppKit 实时绘制；Windows 使用 WPF 矢量、Acrylic 模糊与实时动画。
+- 界面使用 AppKit、Core Animation 与 Core Image 实时绘制。
 - 所有主要界面均由代码生成，不使用效果图贴图代替交互界面。
 - 双击悬浮球立即刷新；右键菜单和系统托盘也可刷新、切换数据源或隐藏悬浮球。
 
@@ -58,13 +56,6 @@
 1. 从 Releases 下载并打开最新的 macOS DMG。
 2. 将 **Balance Capsule** 拖入 Applications。
 3. 首次启动时，在 Finder 中右键应用并选择“打开”。本地发布包使用 ad-hoc 签名，未进行 Apple Developer ID 公证。
-4. 保持 Codex 或 Claude Code 已登录；将鼠标滑到悬浮球上查看详情。
-
-### Windows
-
-1. 从 Releases 下载并运行最新的 Windows x64 EXE，无需安装 .NET。
-2. 若安全软件阻止单文件启动，可改用便携 ZIP，完整解压后运行其中的 `BalanceCapsule.exe`。
-3. 当前版本未使用商业代码签名。若 SmartScreen 提示未知发布者，请核对来源和 SHA-256 后选择“更多信息”继续运行。
 4. 保持 Codex 或 Claude Code 已登录；将鼠标滑到悬浮球上查看详情。
 
 ### 通用操作
@@ -100,13 +91,6 @@ Claude Code 模式通过官方 `statusLine` 数据读取其返回的额度信息
 - Apple Silicon：M1、M2、M3、M4 或后续 arm64 芯片。
 - 不支持 Intel Mac。
 
-### Windows
-
-- Windows 11（build 22000）或更高版本。
-- x64 处理器。
-- 自包含 .NET 8 运行时，无需另外安装 .NET SDK。
-- 不支持 Windows ARM 原生运行。
-
 ## 从源码构建
 
 macOS：
@@ -116,13 +100,7 @@ chmod +x scripts/build-macos.sh
 scripts/build-macos.sh
 ```
 
-Windows：
-
-```bash
-scripts/build-windows.sh
-```
-
-构建产物位于 `artifacts/`。Windows 构建需要可用的 .NET 8 SDK；macOS 构建需要 Xcode Command Line Tools。
+构建产物位于 `artifacts/`。macOS 构建需要 Xcode Command Line Tools。
 
 ## 免责声明与许可
 
