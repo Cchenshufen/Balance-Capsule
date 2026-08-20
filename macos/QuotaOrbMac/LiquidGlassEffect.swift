@@ -66,10 +66,6 @@ final class LiquidGlassEffectView: NSVisualEffectView {
     private func installFilterIfNeeded() {
         guard let rootLayer = layer,
               let backdrop = findBackdropLayer(in: rootLayer) else { return }
-        for sibling in backdrop.superlayer?.sublayers ?? [] where sibling !== backdrop {
-            sibling.opacity = 0
-            sibling.isHidden = true
-        }
         backdrop.opacity = 1
         if backdropLayer !== backdrop || refractionFilter == nil {
             let filter = CIFilter(name: "CIDisplacementDistortion")

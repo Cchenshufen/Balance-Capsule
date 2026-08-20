@@ -133,15 +133,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         detailContainer.wantsLayer = true
         detailContainer.layer?.backgroundColor = NSColor.clear.cgColor
         detailGlassView = LiquidGlassEffectView(frame: .zero)
-        detailGlassView.material = .underWindowBackground
         detailGlassView.blendingMode = .behindWindow
         detailGlassView.state = .active
-        detailGlassView.isEmphasized = false
         detailGlassView.alphaValue = 0
         detailGlassView.wantsLayer = true
         detailGlassView.layer?.masksToBounds = true
         detailView = DetailView(frame: NSRect(origin: .zero, size: detailSize))
         detailView.mode = settings.quotaWindow
+        applyDetailGlassConfiguration()
         detailView.onHoverChanged = { [weak self] hovered in
             hovered ? self?.cancelDetailHide() : self?.scheduleDetailHide()
         }
@@ -153,6 +152,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         detailContainer.addSubview(detailGlassView)
         detailContainer.addSubview(detailView)
         detailPanel.contentView = detailContainer
+    }
+
+    private var selectedDetailGlassStyle: DetailGlassStyle {
+        settings.detailGlassStyle ?? .frosted
+    }
+
+    private var selectedDetailGlassTransparency: CGFloat {
+        let value = settings.detailGlassTransparency ?? 0.55
+        return CGFloat(min(max(value, 0.25), 0.70))
+    }
+
+    private var selectedDetailBackdropOpacity: CGFloat {
+        // The backdrop is intentionally less transparent than the label suggests so
+        // the text remains readable on a black wallpaper or a dark editor window.
+        min(0.95, 0.20 + (1 - selectedDetailGlassTransparency))
+    }
+
+    private func applyDetailGlassConfiguration() {
+        let style = selectedDetailGlassStyle
+        switch style {
+        case .frosted:
+            detailGlassView.material = .popover
+            detailGlassView.isEmphasized = false
+            detailGlassView.appearance = NSAppearance(named: .aqua)
+        case .midnight:
+            detailGlassView.material = .hudWindow
+            detailGlassView.isEmphasized = true
+            detailGlassView.appearance = NSAppearance(named: .darkAqua)
+        }
+        detailView.glassStyle = style
+        detailView.glassTransparency = selectedDetailGlassTransparency
+        updateGlassFrame(progress: detailView.expansionProgress)
     }
 
     private func configure(panel: NSPanel) {
@@ -203,6 +234,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let sourceRoot = NSMenuItem(title: "数据来源", action: nil, keyEquivalent: "")
         sourceRoot.submenu = sources
         menu.addItem(sourceRoot)
+
+        let glassStyles = NSMenu()
+        for style in DetailGlassStyle.allCases {
+            let styleItem = item(style.menuTitle, action: #selector(selectDetailGlassStyle(_:)))
+            styleItem.representedObject = style.rawValue
+            styleItem.state = style == selectedDetailGlassStyle ? .on : .off
+            glassStyles.addItem(styleItem)
+        }
+        let glassRoot = NSMenuItem(title: "详情玻璃效果", action: nil, keyEquivalent: "")
+        glassRoot.submenu = glassStyles
+        menu.addItem(glassRoot)
+
+        let transparencyOptions: [(String, Double)] = [
+            ("70%（更通透）", 0.70),
+            ("55%（均衡）", 0.55),
+            ("40%（更清晰）", 0.40),
+            ("25%（最清晰）", 0.25)
+        ]
+        let transparencies = NSMenu()
+        for option in transparencyOptions {
+            let opacityItem = item(option.0, action: #selector(selectDetailGlassTransparency(_:)))
+            opacityItem.representedObject = NSNumber(value: option.1)
+            opacityItem.state = abs(Double(selectedDetailGlassTransparency) - option.1) < 0.001 ? .on : .off
+            transparencies.addItem(opacityItem)
+        }
+        let transparencyRoot = NSMenuItem(title: "详情透明度", action: nil, keyEquivalent: "")
+        transparencyRoot.submenu = transparencies
+        menu.addItem(transparencyRoot)
 
         menu.addItem(.separator())
         let startup = item("登录时启动", action: #selector(toggleStartup))
@@ -374,7 +433,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             strength: 18 + easedNeck * 8,
             edgeDepth: 16
         )
-        detailGlassView.alphaValue = 1
+        detailGlassView.alphaValue = selectedDetailBackdropOpacity
     }
 
     private func syncOrbPosition(fromDetailOrigin origin: NSPoint, committed: Bool) {
@@ -522,6 +581,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         } else {
             orbPanel.orderOut(nil)
         }
+        rebuildMenu()
+    }
+
+    @objc private func selectDetailGlassStyle(_ sender: NSMenuItem) {
+        guard let rawValue = sender.representedObject as? String,
+              let style = DetailGlassStyle(rawValue: rawValue) else { return }
+        settings.detailGlassStyle = style
+        SettingsStore.shared.save(settings)
+        applyDetailGlassConfiguration()
+        rebuildMenu()
+    }
+
+    @objc private func selectDetailGlassTransparency(_ sender: NSMenuItem) {
+        guard let value = sender.representedObject as? NSNumber else { return }
+        settings.detailGlassTransparency = min(max(value.doubleValue, 0.25), 0.70)
+        SettingsStore.shared.save(settings)
+        applyDetailGlassConfiguration()
         rebuildMenu()
     }
 

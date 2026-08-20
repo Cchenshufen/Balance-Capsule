@@ -131,6 +131,8 @@ final class OrbView: NSView {
 final class DetailView: NSView {
     var state = OrbState() { didSet { needsDisplay = true } }
     var mode: QuotaWindowMode = .fiveHour { didSet { needsDisplay = true } }
+    var glassStyle: DetailGlassStyle = .frosted { didSet { needsDisplay = true } }
+    var glassTransparency: CGFloat = 0.55 { didSet { needsDisplay = true } }
     var opensToRight = true { didSet { needsDisplay = true } }
     var expansionProgress: CGFloat = 0 { didSet { needsDisplay = true } }
     var previewPhase: CGFloat? { didSet { needsDisplay = true } }
@@ -144,6 +146,41 @@ final class DetailView: NSView {
     private var timer: Timer?
     private var dragOffset = NSPoint.zero
     private var isDragging = false
+
+    private var isDarkGlass: Bool { glassStyle == .midnight }
+
+    private var glassDensity: CGFloat {
+        1 - min(max(glassTransparency, 0.25), 0.70)
+    }
+
+    private var glassFill: (start: NSColor, end: NSColor) {
+        switch glassStyle {
+        case .frosted:
+            return (
+                NSColor(calibratedWhite: 1, alpha: 0.23 + 0.62 * glassDensity),
+                NSColor(calibratedRed: 0.78, green: 0.90, blue: 1, alpha: 0.08 + 0.52 * glassDensity)
+            )
+        case .midnight:
+            return (
+                NSColor(calibratedRed: 0.04, green: 0.10, blue: 0.19, alpha: 0.16 + 0.70 * glassDensity),
+                NSColor(calibratedRed: 0.08, green: 0.24, blue: 0.38, alpha: 0.10 + 0.58 * glassDensity)
+            )
+        }
+    }
+
+    private var primaryContentColor: NSColor {
+        isDarkGlass ? NSColor.white.withAlphaComponent(0.96) : appleInk
+    }
+
+    private var secondaryContentColor: NSColor {
+        isDarkGlass
+            ? NSColor(calibratedRed: 0.72, green: 0.84, blue: 0.96, alpha: 1)
+            : appleSecondary
+    }
+
+    private var contentDividerColor: NSColor {
+        isDarkGlass ? NSColor.white.withAlphaComponent(0.28) : NSColor.white.withAlphaComponent(0.82)
+    }
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -298,35 +335,39 @@ final class DetailView: NSView {
         )
         context.setShadow(
             offset: CGSize(width: 0, height: -8),
-            blur: 22,
-            color: NSColor(calibratedRed: 0.14, green: 0.34, blue: 0.52, alpha: 0.15).cgColor
+            blur: 26,
+            color: (isDarkGlass
+                ? NSColor.black.withAlphaComponent(0.36)
+                : NSColor(calibratedRed: 0.14, green: 0.34, blue: 0.52, alpha: 0.22)
+            ).cgColor
         )
+        let fillColors = glassFill
         let fill = NSGradient(
-            starting: NSColor(calibratedWhite: 1, alpha: 0.13),
-            ending: NSColor(calibratedRed: 0.78, green: 0.90, blue: 1.0, alpha: 0.035)
+            starting: fillColors.start,
+            ending: fillColors.end
         )!
         fill.draw(in: card, angle: 125)
         context.setShadow(offset: .zero, blur: 0, color: nil)
 
-        NSColor.white.withAlphaComponent(0.72).setStroke()
+        NSColor.white.withAlphaComponent(isDarkGlass ? 0.68 : 0.82).setStroke()
         card.lineWidth = 1.0
         card.stroke()
         context.saveGState()
         context.translateBy(x: -0.55, y: 0)
-        NSColor(calibratedRed: 0.22, green: 0.76, blue: 1, alpha: 0.16).setStroke()
+        NSColor(calibratedRed: 0.22, green: 0.76, blue: 1, alpha: isDarkGlass ? 0.28 : 0.20).setStroke()
         card.lineWidth = 0.65
         card.stroke()
         context.restoreGState()
         context.saveGState()
         context.translateBy(x: 0.55, y: 0)
-        NSColor(calibratedRed: 1, green: 0.38, blue: 0.52, alpha: 0.09).setStroke()
+        NSColor(calibratedRed: 1, green: 0.38, blue: 0.52, alpha: isDarkGlass ? 0.15 : 0.11).setStroke()
         card.lineWidth = 0.55
         card.stroke()
         context.restoreGState()
         let topHighlight = NSBezierPath()
         topHighlight.move(to: NSPoint(x: visibleCard.minX + min(20, visibleCard.width * 0.15), y: visibleCard.maxY - 3.5))
         topHighlight.line(to: NSPoint(x: visibleCard.maxX - min(20, visibleCard.width * 0.15), y: visibleCard.maxY - 3.5))
-        NSColor.white.withAlphaComponent(0.72).setStroke()
+        NSColor.white.withAlphaComponent(isDarkGlass ? 0.64 : 0.82).setStroke()
         topHighlight.lineWidth = 0.8
         topHighlight.stroke()
         context.restoreGState()
@@ -339,7 +380,7 @@ final class DetailView: NSView {
             "Balance Capsule",
             in: NSRect(x: leading, y: card.maxY - 36, width: 170, height: 24),
             font: .systemFont(ofSize: 17, weight: .regular),
-            color: appleInk,
+            color: primaryContentColor,
             alignment: .left
         )
         drawStatusDot(at: NSPoint(x: card.maxX - 22, y: card.maxY - 22))
@@ -350,14 +391,14 @@ final class DetailView: NSView {
                 balance,
                 in: NSRect(x: leading, y: card.maxY - 114, width: contentWidth, height: 40),
                 font: .systemFont(ofSize: balance.count > 12 ? 20 : 27, weight: .regular),
-                color: appleInk,
+                color: primaryContentColor,
                 alignment: .left
             )
             drawText(
                 state.balanceCaption ?? "Balance",
                 in: NSRect(x: leading, y: card.maxY - 137, width: contentWidth, height: 16),
                 font: .systemFont(ofSize: 10.5, weight: .medium),
-                color: appleSecondary,
+                color: secondaryContentColor,
                 alignment: .left
             )
         } else if state.risk == .error {
@@ -377,18 +418,18 @@ final class DetailView: NSView {
                 percentText,
                 in: NSRect(x: leading, y: card.maxY - 111, width: percentWidth + 2, height: 40),
                 font: percentFont,
-                color: appleInk,
+                color: primaryContentColor,
                 alignment: .left
             )
             drawText(
                 "%",
                 in: NSRect(x: leading + percentWidth + 4, y: card.maxY - 106, width: 24, height: 28),
                 font: .systemFont(ofSize: 19, weight: .regular),
-                color: appleInk,
+                color: primaryContentColor,
                 alignment: .left
             )
 
-            NSColor.white.withAlphaComponent(0.82).setFill()
+            contentDividerColor.setFill()
             NSRect(x: leading, y: card.maxY - 116, width: contentWidth, height: 0.65).fill()
             if let usage = state.tokenUsage {
                 drawTokenUsage(
@@ -444,16 +485,19 @@ final class DetailView: NSView {
             updateText,
             in: NSRect(x: leading, y: card.minY + 5, width: 130, height: 14),
             font: .systemFont(ofSize: 9.5, weight: .regular),
-            color: appleSecondary,
+            color: secondaryContentColor,
             alignment: .left
         )
     }
 
     private func drawAgentPill(in rect: NSRect) {
-        NSColor.white.withAlphaComponent(0.44).setFill()
+        (isDarkGlass
+            ? NSColor(calibratedRed: 0.22, green: 0.37, blue: 0.55, alpha: 0.60)
+            : NSColor.white.withAlphaComponent(0.50)
+        ).setFill()
         let pill = NSBezierPath(roundedRect: rect, xRadius: rect.height / 2, yRadius: rect.height / 2)
         pill.fill()
-        NSColor.white.withAlphaComponent(0.82).setStroke()
+        NSColor.white.withAlphaComponent(isDarkGlass ? 0.54 : 0.82).setStroke()
         pill.lineWidth = 0.75
         pill.stroke()
 
@@ -473,7 +517,9 @@ final class DetailView: NSView {
             state.agentName,
             in: NSRect(x: rect.minX + 24, y: rect.minY + 4, width: rect.width - 28, height: 15),
             font: .systemFont(ofSize: 10.5, weight: .medium),
-            color: NSColor(calibratedRed: 0.23, green: 0.32, blue: 0.46, alpha: 1),
+            color: isDarkGlass
+                ? NSColor.white.withAlphaComponent(0.90)
+                : NSColor(calibratedRed: 0.23, green: 0.32, blue: 0.46, alpha: 1),
             alignment: .left
         )
     }
@@ -484,7 +530,7 @@ final class DetailView: NSView {
             : state.risk.color
         color.setFill()
         NSBezierPath(ovalIn: NSRect(x: point.x - 3.5, y: point.y - 3.5, width: 7, height: 7)).fill()
-        NSColor.white.withAlphaComponent(0.76).setStroke()
+        NSColor.white.withAlphaComponent(isDarkGlass ? 0.72 : 0.76).setStroke()
         let ring = NSBezierPath(ovalIn: NSRect(x: point.x - 4.5, y: point.y - 4.5, width: 9, height: 9))
         ring.lineWidth = 0.7
         ring.stroke()
@@ -502,11 +548,14 @@ final class DetailView: NSView {
             label,
             in: NSRect(x: leading, y: y, width: 36, height: 17),
             font: .systemFont(ofSize: 11.5, weight: .regular),
-            color: appleInk,
+            color: primaryContentColor,
             alignment: .left
         )
         let track = NSRect(x: leading + 45, y: y + 6, width: width - 82, height: 5)
-        NSColor(calibratedRed: 0.76, green: 0.81, blue: 0.88, alpha: 0.48).setFill()
+        (isDarkGlass
+            ? NSColor(calibratedRed: 0.60, green: 0.72, blue: 0.86, alpha: 0.34)
+            : NSColor(calibratedRed: 0.76, green: 0.81, blue: 0.88, alpha: 0.58)
+        ).setFill()
         NSBezierPath(roundedRect: track, xRadius: 2.5, yRadius: 2.5).fill()
         let fill = NSRect(x: track.minX, y: track.minY, width: track.width * CGFloat(percent / 100), height: track.height)
         let fillPath = NSBezierPath(roundedRect: fill, xRadius: 2.5, yRadius: 2.5)
@@ -522,7 +571,7 @@ final class DetailView: NSView {
             value == nil ? "—" : "\(Int(percent.rounded()))%",
             in: NSRect(x: leading + width - 34, y: y, width: 34, height: 17),
             font: .systemFont(ofSize: 11.5, weight: .regular),
-            color: appleInk,
+            color: primaryContentColor,
             alignment: .right
         )
     }
@@ -542,21 +591,21 @@ final class DetailView: NSView {
                 height: rect.height
             )
             if index > 0 {
-                NSColor.white.withAlphaComponent(0.50).setFill()
+                contentDividerColor.withAlphaComponent(isDarkGlass ? 0.32 : 0.56).setFill()
                 NSRect(x: column.minX, y: column.minY + 3, width: 0.55, height: column.height - 6).fill()
             }
             drawText(
                 item.1,
                 in: NSRect(x: column.minX + 2, y: column.minY + 13, width: column.width - 4, height: 15),
                 font: .systemFont(ofSize: 10.2, weight: .semibold),
-                color: appleInk,
+                color: primaryContentColor,
                 alignment: .center
             )
             drawText(
                 item.0,
                 in: NSRect(x: column.minX + 2, y: column.minY, width: column.width - 4, height: 12),
                 font: .systemFont(ofSize: 7.8, weight: .medium),
-                color: appleSecondary,
+                color: secondaryContentColor,
                 alignment: .center
             )
         }

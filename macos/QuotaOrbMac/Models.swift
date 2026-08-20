@@ -18,6 +18,24 @@ enum QuotaWindowMode: String, Codable {
     case weekly
 }
 
+enum DetailGlassStyle: String, Codable, CaseIterable {
+    case frosted
+    case midnight
+
+    var menuTitle: String {
+        switch self {
+        case .frosted: return "标准液态毛玻璃"
+        case .midnight: return "深色液态玻璃"
+        }
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let rawValue = try? container.decode(String.self)
+        self = rawValue == DetailGlassStyle.midnight.rawValue ? .midnight : .frosted
+    }
+}
+
 enum QuotaRisk {
     case loading
     case safe
@@ -107,6 +125,9 @@ struct AppSettings: Codable {
     var quotaWindow: QuotaWindowMode = .weekly
     var animationsEnabled = true
     var startAtLogin = false
+    // Optional values retain compatibility with settings files created before glass controls existed.
+    var detailGlassStyle: DetailGlassStyle?
+    var detailGlassTransparency: Double?
 }
 
 final class SettingsStore {
