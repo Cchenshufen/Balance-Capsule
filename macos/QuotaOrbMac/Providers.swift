@@ -65,7 +65,7 @@ enum CodexRPCProvider {
         let lines = LineChannel()
 
         process.executableURL = URL(fileURLWithPath: executable)
-        process.arguments = ["-s", "read-only", "-a", "untrusted", "app-server"]
+        process.arguments = ["-s", "read-only", "-a", "never", "app-server"]
         process.standardInput = input
         process.standardOutput = output
         process.standardError = FileHandle.nullDevice

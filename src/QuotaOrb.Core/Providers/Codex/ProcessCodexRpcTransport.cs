@@ -33,7 +33,7 @@ public sealed class ProcessCodexRpcTransport : ICodexRpcTransport
             info.ArgumentList.Add(prefix);
         }
 
-        foreach (var argument in new[] { "-s", "read-only", "-a", "untrusted", "app-server" })
+        foreach (var argument in new[] { "-s", "read-only", "-a", "never", "app-server" })
         {
             info.ArgumentList.Add(argument);
         }
