@@ -19,19 +19,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var hideDetailWorkItem: DispatchWorkItem?
     private var detailAnimationTimer: Timer?
     private var refreshTimer: Timer?
+    private var quotaDisplayTimer: Timer?
     private var refreshGeneration = 0
     private var refreshInProgress = false
     private var refreshQueued = false
     private var detailRequested = false
     private var orbEnabled = true
+    private var displayedQuotaWindow: QuotaWindowMode = .fiveHour
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         var migratedSettings = false
-        if settings.quotaWindow != .weekly {
-            settings.quotaWindow = .weekly
-            migratedSettings = true
-        }
         if !settings.animationsEnabled {
             settings.animationsEnabled = true
             migratedSettings = true
@@ -47,10 +45,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         refreshTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
             self?.refresh()
         }
+        quotaDisplayTimer = Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { [weak self] _ in
+            self?.rotateQuotaDisplay()
+        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
         refreshTimer?.invalidate()
+        quotaDisplayTimer?.invalidate()
         detailAnimationTimer?.invalidate()
         settings.orbX = Double(orbPanel.frame.origin.x)
         settings.orbY = Double(orbPanel.frame.origin.y)
@@ -102,7 +104,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         )
         orbView = OrbView(frame: NSRect(origin: .zero, size: size))
         orbView.animationsEnabled = settings.animationsEnabled
-        orbView.mode = settings.quotaWindow
+        orbView.mode = displayedQuotaWindow
         orbView.onHoverChanged = { [weak self] hovered in
             hovered ? self?.showDetail() : self?.scheduleDetailHide()
         }
@@ -139,7 +141,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         detailGlassView.wantsLayer = true
         detailGlassView.layer?.masksToBounds = true
         detailView = DetailView(frame: NSRect(origin: .zero, size: detailSize))
-        detailView.mode = settings.quotaWindow
+        detailView.mode = detailQuotaWindow
         applyDetailGlassConfiguration()
         detailView.onHoverChanged = { [weak self] hovered in
             hovered ? self?.cancelDetailHide() : self?.scheduleDetailHide()
@@ -496,6 +498,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     guard let self else { return }
                     if generation == self.refreshGeneration {
                         self.state = result
+                        self.displayedQuotaWindow = .fiveHour
                         self.updateUI()
                     }
                     self.finishRefresh()
@@ -532,22 +535,39 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
-    private func updateUI() {
+    private func updateUI(rebuildMenu shouldRebuildMenu: Bool = true) {
+        let displayMode = activeQuotaWindow
         orbView?.state = state
-        orbView?.mode = settings.quotaWindow
+        orbView?.mode = displayMode
         detailView?.state = state
-        detailView?.mode = settings.quotaWindow
+        detailView?.mode = detailQuotaWindow
         statusItem?.button?.image = makeMenuBarImage(color: state.risk.color)
-        let display = state.displayText(mode: settings.quotaWindow)
-        let suffix = state.balanceText == nil && state.selectedPercent(mode: settings.quotaWindow) != nil ? "%" : ""
+        let display = state.displayText(mode: displayMode)
+        let suffix = state.balanceText == nil && state.selectedPercent(mode: displayMode) != nil ? "%" : ""
         statusItem?.button?.title = " \(display)\(suffix)"
         statusItem?.button?.toolTip = summaryText()
-        rebuildMenu()
+        if shouldRebuildMenu { rebuildMenu() }
     }
 
     private func summaryText() -> String {
         if let message = state.message { return "\(state.sourceName)：\(message)" }
-        return "\(state.sourceName) · \(state.caption(mode: settings.quotaWindow)) \(state.displayText(mode: settings.quotaWindow))"
+        let mode = activeQuotaWindow
+        return "\(state.sourceName) · \(state.caption(mode: mode)) \(state.displayText(mode: mode))"
+    }
+
+    private var activeQuotaWindow: QuotaWindowMode {
+        if state.fiveHour != nil && state.weekly != nil { return displayedQuotaWindow }
+        return state.fiveHour != nil ? .fiveHour : .weekly
+    }
+
+    private var detailQuotaWindow: QuotaWindowMode {
+        state.weekly != nil ? .weekly : .fiveHour
+    }
+
+    private func rotateQuotaDisplay() {
+        guard state.balanceText == nil, state.fiveHour != nil, state.weekly != nil else { return }
+        displayedQuotaWindow = displayedQuotaWindow == .fiveHour ? .weekly : .fiveHour
+        updateUI(rebuildMenu: false)
     }
 
     private func makeMenuBarImage(color: NSColor) -> NSImage {

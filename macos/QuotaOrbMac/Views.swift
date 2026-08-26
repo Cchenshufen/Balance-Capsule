@@ -442,9 +442,16 @@ final class DetailView: NSView {
                     )
                 )
                 drawProgressRow(
+                    label: "5h",
+                    value: state.fiveHour?.remainingPercent,
+                    y: card.maxY - 144,
+                    leading: leading,
+                    width: contentWidth
+                )
+                drawProgressRow(
                     label: "Week",
                     value: state.weekly?.remainingPercent,
-                    y: card.maxY - 151,
+                    y: card.maxY - 165,
                     leading: leading,
                     width: contentWidth
                 )
