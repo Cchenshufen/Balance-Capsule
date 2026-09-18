@@ -13,6 +13,8 @@ final class DetailPanel: NSPanel {
 final class OrbView: NSView {
     var state = OrbState() { didSet { needsDisplay = true } }
     var mode: QuotaWindowMode = .fiveHour { didSet { needsDisplay = true } }
+    var secondaryState: OrbState? { didSet { needsDisplay = true } }
+    var secondaryMode: QuotaWindowMode = .fiveHour { didSet { needsDisplay = true } }
     var animationsEnabled = true
     var onHoverChanged: ((Bool) -> Void)?
     var onPositionCommitted: ((NSPoint) -> Void)?
@@ -101,6 +103,39 @@ final class OrbView: NSView {
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
         let bob = animationsEnabled ? sin(animationPhase * 0.72) * 0.65 : 0
+        if let secondaryState {
+            drawAppleOrb(
+                state: state,
+                mode: mode,
+                in: NSRect(x: 5, y: 25 + bob, width: 31, height: 31),
+                phase: animationPhase,
+                interaction: hoverIntensity,
+                showGlow: true
+            )
+            drawAppleOrb(
+                state: secondaryState,
+                mode: secondaryMode,
+                in: NSRect(x: 38, y: 25 + bob, width: 31, height: 31),
+                phase: animationPhase + 0.9,
+                interaction: hoverIntensity,
+                showGlow: true
+            )
+            drawText(
+                "C",
+                in: NSRect(x: 5, y: 8, width: 31, height: 12),
+                font: .systemFont(ofSize: 8.5, weight: .semibold),
+                color: appleInk.withAlphaComponent(0.84),
+                alignment: .center
+            )
+            drawText(
+                "Cl",
+                in: NSRect(x: 38, y: 8, width: 31, height: 12),
+                font: .systemFont(ofSize: 8.5, weight: .semibold),
+                color: appleInk.withAlphaComponent(0.84),
+                alignment: .center
+            )
+            return
+        }
         drawAppleOrb(
             state: state,
             mode: mode,
@@ -131,6 +166,9 @@ final class OrbView: NSView {
 final class DetailView: NSView {
     var state = OrbState() { didSet { needsDisplay = true } }
     var mode: QuotaWindowMode = .fiveHour { didSet { needsDisplay = true } }
+    var secondaryState: OrbState? { didSet { needsDisplay = true } }
+    var secondaryMode: QuotaWindowMode = .fiveHour { didSet { needsDisplay = true } }
+    var statusRisk: QuotaRisk? { didSet { needsDisplay = true } }
     var glassStyle: DetailGlassStyle = .frosted { didSet { needsDisplay = true } }
     var glassTransparency: CGFloat = 0.55 { didSet { needsDisplay = true } }
     var opensToRight = true { didSet { needsDisplay = true } }
@@ -374,6 +412,10 @@ final class DetailView: NSView {
     }
 
     private func drawCardContent(in card: NSRect) {
+        if let secondaryState {
+            drawCombinedCardContent(in: card, secondaryState: secondaryState)
+            return
+        }
         let leading = opensToRight ? card.minX + 30 : card.minX + 24
         let contentWidth = card.width - 54
         drawText(
@@ -431,6 +473,13 @@ final class DetailView: NSView {
 
             contentDividerColor.setFill()
             NSRect(x: leading, y: card.maxY - 116, width: contentWidth, height: 0.65).fill()
+            var quotaRows: [(label: String, value: Double)] = []
+            if let fiveHour = state.fiveHour {
+                quotaRows.append((label: "5h", value: fiveHour.remainingPercent))
+            }
+            if let weekly = state.weekly {
+                quotaRows.append((label: "Week", value: weekly.remainingPercent))
+            }
             if let usage = state.tokenUsage {
                 drawTokenUsage(
                     usage,
@@ -441,35 +490,9 @@ final class DetailView: NSView {
                         height: 34
                     )
                 )
-                drawProgressRow(
-                    label: "5h",
-                    value: state.fiveHour?.remainingPercent,
-                    y: card.maxY - 144,
-                    leading: leading,
-                    width: contentWidth
-                )
-                drawProgressRow(
-                    label: "Week",
-                    value: state.weekly?.remainingPercent,
-                    y: card.maxY - 165,
-                    leading: leading,
-                    width: contentWidth
-                )
+                drawQuotaRows(quotaRows, startY: card.maxY - 144, leading: leading, width: contentWidth)
             } else {
-                drawProgressRow(
-                    label: "5h",
-                    value: state.fiveHour?.remainingPercent,
-                    y: card.maxY - 143,
-                    leading: leading,
-                    width: contentWidth
-                )
-                drawProgressRow(
-                    label: "Week",
-                    value: state.weekly?.remainingPercent,
-                    y: card.maxY - 166,
-                    leading: leading,
-                    width: contentWidth
-                )
+                drawQuotaRows(quotaRows, startY: card.maxY - 143, leading: leading, width: contentWidth)
             }
         }
 
@@ -484,7 +507,8 @@ final class DetailView: NSView {
         if let updated = state.updatedAt {
             let formatter = DateFormatter()
             formatter.dateFormat = "HH:mm"
-            updateText = "Updated \(formatter.string(from: updated))"
+            let prefix = state.isStale ? "数据已过期 · " : ""
+            updateText = "\(prefix)Updated \(formatter.string(from: updated))"
         } else {
             updateText = "Waiting for update"
         }
@@ -492,7 +516,7 @@ final class DetailView: NSView {
             updateText,
             in: NSRect(x: leading, y: card.minY + 5, width: 130, height: 14),
             font: .systemFont(ofSize: 9.5, weight: .regular),
-            color: secondaryContentColor,
+            color: state.isStale ? QuotaRisk.warning.color : secondaryContentColor,
             alignment: .left
         )
     }
@@ -532,9 +556,10 @@ final class DetailView: NSView {
     }
 
     private func drawStatusDot(at point: NSPoint) {
-        let color = state.risk == .safe
+        let effectiveRisk = statusRisk ?? state.risk
+        let color = effectiveRisk == .safe
             ? NSColor(calibratedRed: 1.0, green: 0.60, blue: 0.32, alpha: 1)
-            : state.risk.color
+            : effectiveRisk.color
         color.setFill()
         NSBezierPath(ovalIn: NSRect(x: point.x - 3.5, y: point.y - 3.5, width: 7, height: 7)).fill()
         NSColor.white.withAlphaComponent(isDarkGlass ? 0.72 : 0.76).setStroke()
@@ -581,6 +606,110 @@ final class DetailView: NSView {
             color: primaryContentColor,
             alignment: .right
         )
+    }
+
+    private func drawQuotaRows(
+        _ rows: [(label: String, value: Double)],
+        startY: CGFloat,
+        leading: CGFloat,
+        width: CGFloat
+    ) {
+        for (index, row) in rows.enumerated() {
+            drawProgressRow(
+                label: row.label,
+                value: row.value,
+                y: startY - CGFloat(index * 21),
+                leading: leading,
+                width: width
+            )
+        }
+    }
+
+    private func drawCombinedCardContent(in card: NSRect, secondaryState: OrbState) {
+        let leading = opensToRight ? card.minX + 30 : card.minX + 24
+        let contentWidth = card.width - 54
+        drawText(
+            "Balance Capsule",
+            in: NSRect(x: leading, y: card.maxY - 36, width: 170, height: 24),
+            font: .systemFont(ofSize: 17, weight: .regular),
+            color: primaryContentColor,
+            alignment: .left
+        )
+        drawStatusDot(at: NSPoint(x: card.maxX - 22, y: card.maxY - 22))
+
+        let firstRow = NSRect(x: leading, y: card.maxY - 92, width: contentWidth, height: 39)
+        let secondRow = NSRect(x: leading, y: card.maxY - 136, width: contentWidth, height: 39)
+        drawSourceRow(state: state, mode: mode, in: firstRow)
+        drawSourceRow(state: secondaryState, mode: secondaryMode, in: secondRow)
+
+        if let usage = state.tokenUsage {
+            drawText(
+                "Codex Token  今日 \(compactTokenCount(usage.todayTokens))  本月 \(compactTokenCount(usage.monthTokens))  总计 \(compactTokenCount(usage.totalTokens))",
+                in: NSRect(x: leading, y: card.minY + 12, width: contentWidth, height: 15),
+                font: .systemFont(ofSize: 8.8, weight: .medium),
+                color: secondaryContentColor,
+                alignment: .left
+            )
+        } else {
+            drawText(
+                "Codex 和 Claude Code 的额度独立读取",
+                in: NSRect(x: leading, y: card.minY + 12, width: contentWidth, height: 15),
+                font: .systemFont(ofSize: 9, weight: .medium),
+                color: secondaryContentColor,
+                alignment: .left
+            )
+        }
+    }
+
+    private func drawSourceRow(state: OrbState, mode: QuotaWindowMode, in rect: NSRect) {
+        let rowPath = NSBezierPath(roundedRect: rect, xRadius: 9, yRadius: 9)
+        (isDarkGlass
+            ? NSColor.white.withAlphaComponent(0.12)
+            : NSColor.white.withAlphaComponent(0.38)
+        ).setFill()
+        rowPath.fill()
+        contentDividerColor.withAlphaComponent(0.62).setStroke()
+        rowPath.lineWidth = 0.55
+        rowPath.stroke()
+
+        let name = state.agentName == "Claude Code" ? "Claude Code" : "Codex"
+        drawText(
+            name,
+            in: NSRect(x: rect.minX + 11, y: rect.maxY - 16, width: 76, height: 13),
+            font: .systemFont(ofSize: 10.2, weight: .semibold),
+            color: primaryContentColor,
+            alignment: .left
+        )
+        let current = state.selectedPercent(mode: mode)
+        let display = current.map { "\(state.isStale ? "~" : "")\(Int($0.rounded()))%" } ?? "—"
+        drawText(
+            display,
+            in: NSRect(x: rect.minX + 88, y: rect.maxY - 19, width: 44, height: 17),
+            font: .systemFont(ofSize: 14.5, weight: .regular),
+            color: primaryContentColor,
+            alignment: .left
+        )
+        drawText(
+            quotaSummary(for: state),
+            in: NSRect(x: rect.minX + 11, y: rect.minY + 5, width: rect.width - 22, height: 12),
+            font: .systemFont(ofSize: 8.9, weight: .medium),
+            color: secondaryContentColor,
+            alignment: .left
+        )
+    }
+
+    private func quotaSummary(for state: OrbState) -> String {
+        if let balance = state.balanceText { return balance }
+        if state.risk == .error { return state.message ?? "读取失败" }
+        var values: [String] = []
+        if let fiveHour = state.fiveHour {
+            values.append("5h \(Int(fiveHour.remainingPercent.rounded()))%")
+        }
+        if let weekly = state.weekly {
+            values.append("Week \(Int(weekly.remainingPercent.rounded()))%")
+        }
+        let summary = values.isEmpty ? "暂未返回可用额度" : values.joined(separator: " · ")
+        return state.isStale ? "已过期 · \(summary)" : summary
     }
 
     private func drawTokenUsage(_ usage: TokenUsageSummary, in rect: NSRect) {
@@ -1051,7 +1180,8 @@ private func drawAppleOrb(
     let text = state.displayText(mode: mode)
     let suffix = state.balanceText == nil && selected != nil ? "%" : ""
     let fullText = text + suffix
-    let fontSize: CGFloat = state.balanceText == nil ? 15 : (fullText.count > 10 ? 6.2 : 8.5)
+    let orbScale = min(1, rect.width / 62)
+    let fontSize: CGFloat = (state.balanceText == nil ? 15 : (fullText.count > 10 ? 6.2 : 8.5)) * max(0.55, orbScale)
     drawText(
         fullText,
         in: NSRect(x: rect.minX + 8, y: rect.midY - 9, width: rect.width - 16, height: 20),

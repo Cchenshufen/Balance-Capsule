@@ -8,12 +8,12 @@
 - 鼠标悬停详情面板和菜单栏额度状态
 - Codex 官方 `app-server` 只读额度查询
 - Codex 当前登录账号的每日 Token 桶与账号累计 Token 查询
-- DeepSeek 账户余额与 OpenRouter 当前 Key 剩余额度
 - Claude Code `statusLine` 只读额度桥接
-- 5 小时/一周额度切换、60 秒自动刷新、手动刷新
-- 登录时启动、动画开关和本机设置持久化
+- Codex、Claude Code 单独显示或双源同时显示
+- 官方返回的 5 小时/一周额度自动轮换、60 秒自动刷新、手动刷新
+- 单实例运行、登录时启动和本机设置持久化
 
-macOS 版不会读取聊天记录、本机会话日志、浏览器 Cookie 或 Codex `auth.json`。Codex Token 统计直接使用官方 `account/usage/read` 账号响应；第三方余额请求仅允许同主机 HTTPS GET，禁止重定向，响应上限 256 KB。Claude Code 的个人账号没有同等官方统计 API，因此不会用本机数据冒充账号总量；组织版需要单独的 Admin/Analytics API 凭据。
+macOS 版不会读取聊天记录、本机会话日志、浏览器 Cookie 或 Codex `auth.json`。Codex Token 统计直接使用官方 `account/usage/read` 账号响应。Claude Code 的个人账号没有同等官方统计 API，因此不会用本机数据冒充账号总量；组织版需要单独的 Admin/Analytics API 凭据。
 
 ## 构建
 
@@ -22,4 +22,4 @@ chmod +x scripts/build-macos.sh
 scripts/build-macos.sh
 ```
 
-产物位于 `artifacts/macos/`。本地构建使用 ad-hoc 签名；没有 Apple Developer ID 的个人构建首次打开时，需在 Finder 中右键应用并选择“打开”。
+产物位于 `artifacts/macos/`。未配置签名环境变量时使用 ad-hoc 签名，首次打开需在 Finder 中右键应用并选择“打开”。公开分发时设置 `BALANCE_CAPSULE_CODESIGN_IDENTITY` 为 Developer ID Application 证书，并设置 `BALANCE_CAPSULE_NOTARY_PROFILE` 为已保存的 `notarytool` 钥匙串配置；构建脚本会自动签名、公证和装订票据。

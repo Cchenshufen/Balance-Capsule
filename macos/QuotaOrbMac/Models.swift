@@ -13,6 +13,28 @@ enum AgentSource: String, Codable {
     }
 }
 
+enum AgentDisplayMode: String, Codable, CaseIterable {
+    case codex
+    case claudeCode
+    case both
+
+    var sources: [AgentSource] {
+        switch self {
+        case .codex: return [.codex]
+        case .claudeCode: return [.claudeCode]
+        case .both: return [.codex, .claudeCode]
+        }
+    }
+
+    var menuTitle: String {
+        switch self {
+        case .codex: return "仅显示 Codex"
+        case .claudeCode: return "仅显示 Claude Code"
+        case .both: return "同时显示 Codex 和 Claude Code"
+        }
+    }
+}
+
 enum QuotaWindowMode: String, Codable {
     case fiveHour
     case weekly
@@ -61,6 +83,16 @@ enum QuotaRisk {
         case .error: return "读取失败"
         }
     }
+
+    var severity: Int {
+        switch self {
+        case .safe: return 0
+        case .loading: return 1
+        case .warning: return 2
+        case .critical: return 3
+        case .error: return 4
+        }
+    }
 }
 
 struct QuotaWindowValue {
@@ -86,6 +118,7 @@ struct OrbState {
     var risk: QuotaRisk = .loading
     var message: String?
     var updatedAt: Date?
+    var isStale = false
 
     func selectedPercent(mode: QuotaWindowMode) -> Double? {
         if mode == .weekly, let weekly {
@@ -101,7 +134,8 @@ struct OrbState {
         guard let percent = selectedPercent(mode: mode) else {
             return risk == .loading ? "…" : "!"
         }
-        return String(Int(percent.rounded()))
+        let value = String(Int(percent.rounded()))
+        return isStale ? "~\(value)" : value
     }
 
     func caption(mode: QuotaWindowMode) -> String {
@@ -122,6 +156,8 @@ struct AppSettings: Codable {
     var orbX: Double?
     var orbY: Double?
     var selectedAgent: AgentSource = .codex
+    // Optional to preserve the user's source choice from earlier versions.
+    var agentDisplayMode: AgentDisplayMode?
     var quotaWindow: QuotaWindowMode = .weekly
     var animationsEnabled = true
     var startAtLogin = false

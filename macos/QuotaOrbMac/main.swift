@@ -1,4 +1,5 @@
 import AppKit
+import Darwin
 import Foundation
 import ImageIO
 import UniformTypeIdentifiers
@@ -6,6 +7,7 @@ import UniformTypeIdentifiers
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var settings = SettingsStore.shared.load()
     private var state = OrbState()
+    private var sourceStates: [AgentSource: OrbState] = [:]
     private var orbPanel: OrbPanel!
     private var detailPanel: DetailPanel!
     private var orbContainer: NSView!
@@ -26,8 +28,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var detailRequested = false
     private var orbEnabled = true
     private var displayedQuotaWindow: QuotaWindowMode = .fiveHour
+    private var instanceLockDescriptor: Int32 = -1
+
+    private var selectedAgentDisplayMode: AgentDisplayMode {
+        settings.agentDisplayMode ?? (settings.selectedAgent == .codex ? .codex : .claudeCode)
+    }
+
+    private var activeSources: [AgentSource] {
+        selectedAgentDisplayMode.sources
+    }
+
+    private var isShowingBothSources: Bool {
+        selectedAgentDisplayMode == .both
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        guard acquireInstanceLock() else {
+            activateExistingInstance()
+            NSApp.terminate(nil)
+            return
+        }
         NSApp.setActivationPolicy(.accessory)
         var migratedSettings = false
         if !settings.animationsEnabled {
@@ -54,12 +74,47 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         refreshTimer?.invalidate()
         quotaDisplayTimer?.invalidate()
         detailAnimationTimer?.invalidate()
-        settings.orbX = Double(orbPanel.frame.origin.x)
-        settings.orbY = Double(orbPanel.frame.origin.y)
-        SettingsStore.shared.save(settings)
+        if orbPanel != nil {
+            settings.orbX = Double(orbPanel.frame.origin.x)
+            settings.orbY = Double(orbPanel.frame.origin.y)
+            SettingsStore.shared.save(settings)
+        }
+        releaseInstanceLock()
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+
+    private func acquireInstanceLock() -> Bool {
+        let directory = SettingsStore.shared.supportDirectory
+        do {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        } catch {
+            return false
+        }
+        let path = directory.appendingPathComponent("BalanceCapsule.lock").path
+        let descriptor = Darwin.open(path, O_CREAT | O_RDWR, mode_t(S_IRUSR | S_IWUSR))
+        guard descriptor >= 0 else { return false }
+        guard Darwin.lockf(descriptor, F_TLOCK, 0) == 0 else {
+            Darwin.close(descriptor)
+            return false
+        }
+        instanceLockDescriptor = descriptor
+        return true
+    }
+
+    private func releaseInstanceLock() {
+        guard instanceLockDescriptor >= 0 else { return }
+        _ = Darwin.lockf(instanceLockDescriptor, F_ULOCK, 0)
+        Darwin.close(instanceLockDescriptor)
+        instanceLockDescriptor = -1
+    }
+
+    private func activateExistingInstance() {
+        let currentPID = ProcessInfo.processInfo.processIdentifier
+        NSRunningApplication.runningApplications(withBundleIdentifier: "com.anye37154.balancecapsule")
+            .first { $0.processIdentifier != currentPID }?
+            .activate(options: [])
+    }
 
     private func createWindows() {
         let size = NSSize(width: 74, height: 78)
@@ -227,13 +282,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(item(orbTitle, action: #selector(toggleOrbVisibility)))
 
         let sources = NSMenu()
-        let codex = item("Codex", action: #selector(selectCodex))
-        codex.state = settings.selectedAgent == .codex ? .on : .off
-        sources.addItem(codex)
-        let claude = item("Claude Code", action: #selector(selectClaude))
-        claude.state = settings.selectedAgent == .claudeCode ? .on : .off
-        sources.addItem(claude)
-        let sourceRoot = NSMenuItem(title: "数据来源", action: nil, keyEquivalent: "")
+        for mode in AgentDisplayMode.allCases {
+            let sourceItem = item(mode.menuTitle, action: #selector(selectAgentDisplayMode(_:)))
+            sourceItem.representedObject = mode.rawValue
+            sourceItem.state = selectedAgentDisplayMode == mode ? .on : .off
+            sources.addItem(sourceItem)
+        }
+        let sourceRoot = NSMenuItem(title: "显示来源", action: nil, keyEquivalent: "")
         sourceRoot.submenu = sources
         menu.addItem(sourceRoot)
 
@@ -486,42 +541,70 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         refreshInProgress = true
         rebuildMenu()
-        let source = settings.selectedAgent
         if state.updatedAt == nil {
-            state = OrbState(sourceName: source == .codex ? "Codex 官方" : "Claude Code 官方", agentName: source.displayName)
+            state = loadingState(for: activeSources.first ?? .codex)
             updateUI()
         }
-        DispatchQueue.global(qos: .utility).async { [weak self] in
-            do {
-                let result = try ProviderCoordinator.read(source: source)
-                DispatchQueue.main.async {
-                    guard let self else { return }
-                    if generation == self.refreshGeneration {
-                        self.state = result
-                        self.displayedQuotaWindow = .fiveHour
-                        self.updateUI()
-                    }
-                    self.finishRefresh()
-                }
-            } catch {
-                DispatchQueue.main.async {
-                    guard let self else { return }
-                    if generation == self.refreshGeneration {
-                        if self.state.updatedAt == nil {
-                            self.state = OrbState(
-                                sourceName: source == .codex ? "Codex" : "Claude Code",
-                                agentName: source.displayName,
-                                risk: .error,
-                                message: error.localizedDescription
-                            )
-                        } else {
-                            self.state.message = "刷新失败：\(error.localizedDescription)"
-                        }
-                        self.updateUI()
-                    }
-                    self.finishRefresh()
-                }
+        let sources = activeSources
+        let group = DispatchGroup()
+        let lock = NSLock()
+        var results: [AgentSource: Result<OrbState, Error>] = [:]
+        for source in sources {
+            group.enter()
+            DispatchQueue.global(qos: .utility).async {
+                let result = Result { try ProviderCoordinator.read(source: source) }
+                lock.lock()
+                results[source] = result
+                lock.unlock()
+                group.leave()
             }
+        }
+        group.notify(queue: .main) { [weak self] in
+            guard let self else { return }
+            if generation == self.refreshGeneration {
+                for source in sources {
+                    guard let result = results[source] else { continue }
+                    switch result {
+                    case .success(let updated):
+                        self.sourceStates[source] = updated
+                    case .failure(let error):
+                        self.recordRefreshFailure(error, for: source)
+                    }
+                }
+                self.syncDisplayedState(resetQuotaWindow: true)
+                self.updateUI()
+            }
+            self.finishRefresh()
+        }
+    }
+
+    private func loadingState(for source: AgentSource) -> OrbState {
+        OrbState(
+            sourceName: source == .codex ? "Codex 官方" : "Claude Code 官方",
+            agentName: source.displayName
+        )
+    }
+
+    private func recordRefreshFailure(_ error: Error, for source: AgentSource) {
+        if var existing = sourceStates[source] {
+            existing.message = "刷新失败：\(error.localizedDescription)"
+            existing.isStale = true
+            sourceStates[source] = existing
+        } else {
+            sourceStates[source] = OrbState(
+                sourceName: source == .codex ? "Codex" : "Claude Code",
+                agentName: source.displayName,
+                risk: .error,
+                message: error.localizedDescription
+            )
+        }
+    }
+
+    private func syncDisplayedState(resetQuotaWindow: Bool) {
+        let primarySource: AgentSource = isShowingBothSources ? .codex : activeSources.first ?? .codex
+        state = sourceStates[primarySource] ?? loadingState(for: primarySource)
+        if resetQuotaWindow {
+            displayedQuotaWindow = state.fiveHour != nil ? .fiveHour : .weekly
         }
     }
 
@@ -537,37 +620,97 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func updateUI(rebuildMenu shouldRebuildMenu: Bool = true) {
         let displayMode = activeQuotaWindow
-        orbView?.state = state
-        orbView?.mode = displayMode
-        detailView?.state = state
-        detailView?.mode = detailQuotaWindow
-        statusItem?.button?.image = makeMenuBarImage(color: state.risk.color)
-        let display = state.displayText(mode: displayMode)
-        let suffix = state.balanceText == nil && state.selectedPercent(mode: displayMode) != nil ? "%" : ""
-        statusItem?.button?.title = " \(display)\(suffix)"
+        let codexState = isShowingBothSources ? (sourceStates[.codex] ?? loadingState(for: .codex)) : state
+        let claudeState = isShowingBothSources
+            ? (sourceStates[.claudeCode] ?? loadingState(for: .claudeCode))
+            : nil
+        orbView?.state = codexState
+        orbView?.mode = activeQuotaWindow(for: codexState)
+        orbView?.secondaryState = claudeState
+        orbView?.secondaryMode = claudeState.map { activeQuotaWindow(for: $0) } ?? .weekly
+        detailView?.state = codexState
+        detailView?.mode = detailQuotaWindow(for: codexState)
+        detailView?.secondaryState = claudeState
+        detailView?.secondaryMode = claudeState.map { detailQuotaWindow(for: $0) } ?? .weekly
+        let risk = combinedDisplayRisk(states: [codexState, claudeState].compactMap { $0 })
+        detailView?.statusRisk = risk
+        statusItem?.button?.image = makeMenuBarImage(color: risk.color)
+        statusItem?.button?.title = statusTitle(for: displayMode)
         statusItem?.button?.toolTip = summaryText()
         if shouldRebuildMenu { rebuildMenu() }
     }
 
     private func summaryText() -> String {
-        if let message = state.message { return "\(state.sourceName)：\(message)" }
-        let mode = activeQuotaWindow
-        return "\(state.sourceName) · \(state.caption(mode: mode)) \(state.displayText(mode: mode))"
+        if isShowingBothSources {
+            let codex = sourceStates[.codex] ?? loadingState(for: .codex)
+            let claude = sourceStates[.claudeCode] ?? loadingState(for: .claudeCode)
+            return [sourceSummary(for: codex), sourceSummary(for: claude)]
+                .joined(separator: "  |  ")
+        }
+        return sourceSummary(for: state)
     }
 
     private var activeQuotaWindow: QuotaWindowMode {
-        if state.fiveHour != nil && state.weekly != nil { return displayedQuotaWindow }
-        return state.fiveHour != nil ? .fiveHour : .weekly
+        activeQuotaWindow(for: state)
+    }
+
+    private func activeQuotaWindow(for sourceState: OrbState) -> QuotaWindowMode {
+        if sourceState.fiveHour != nil && sourceState.weekly != nil { return displayedQuotaWindow }
+        return sourceState.fiveHour != nil ? .fiveHour : .weekly
     }
 
     private var detailQuotaWindow: QuotaWindowMode {
-        state.weekly != nil ? .weekly : .fiveHour
+        detailQuotaWindow(for: state)
+    }
+
+    private func detailQuotaWindow(for sourceState: OrbState) -> QuotaWindowMode {
+        sourceState.weekly != nil ? .weekly : .fiveHour
     }
 
     private func rotateQuotaDisplay() {
-        guard state.balanceText == nil, state.fiveHour != nil, state.weekly != nil else { return }
+        let states = isShowingBothSources
+            ? [sourceStates[.codex], sourceStates[.claudeCode]].compactMap { $0 }
+            : [state]
+        guard states.contains(where: { $0.balanceText == nil && $0.fiveHour != nil && $0.weekly != nil }) else { return }
         displayedQuotaWindow = displayedQuotaWindow == .fiveHour ? .weekly : .fiveHour
         updateUI(rebuildMenu: false)
+    }
+
+    private func statusTitle(for mode: QuotaWindowMode) -> String {
+        if isShowingBothSources {
+            let codex = sourceStates[.codex] ?? loadingState(for: .codex)
+            let claude = sourceStates[.claudeCode] ?? loadingState(for: .claudeCode)
+            let values = [
+                "C \(compactQuotaText(for: codex, mode: mode))",
+                "Cl \(compactQuotaText(for: claude, mode: activeQuotaWindow(for: claude)))"
+            ]
+            return " " + values.joined(separator: " · ")
+        }
+        return " \(compactQuotaText(for: state, mode: mode))"
+    }
+
+    private func compactQuotaText(for sourceState: OrbState, mode: QuotaWindowMode) -> String {
+        let display = sourceState.displayText(mode: mode)
+        let suffix = sourceState.balanceText == nil && sourceState.selectedPercent(mode: mode) != nil ? "%" : ""
+        return "\(display)\(suffix)"
+    }
+
+    private func sourceSummary(for sourceState: OrbState) -> String {
+        if let message = sourceState.message { return "\(sourceState.sourceName)：\(message)" }
+        let mode = activeQuotaWindow(for: sourceState)
+        return "\(sourceState.sourceName) · \(sourceState.caption(mode: mode)) \(sourceState.displayText(mode: mode))"
+    }
+
+    private func combinedDisplayRisk(states: [OrbState]) -> QuotaRisk {
+        states
+            .map { sourceState in
+                if sourceState.isStale && sourceState.risk.severity < QuotaRisk.warning.severity {
+                    return QuotaRisk.warning
+                }
+                return sourceState.risk
+            }
+            .max { $0.severity < $1.severity }
+            ?? .loading
     }
 
     private func makeMenuBarImage(color: NSColor) -> NSImage {
@@ -621,12 +764,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         rebuildMenu()
     }
 
-    @objc private func selectCodex() { selectSource(.codex) }
-    @objc private func selectClaude() { selectSource(.claudeCode) }
-
-    private func selectSource(_ source: AgentSource) {
-        settings.selectedAgent = source
+    @objc private func selectAgentDisplayMode(_ sender: NSMenuItem) {
+        guard let rawValue = sender.representedObject as? String,
+              let mode = AgentDisplayMode(rawValue: rawValue) else { return }
+        settings.agentDisplayMode = mode
+        if mode == .codex {
+            settings.selectedAgent = .codex
+        } else if mode == .claudeCode {
+            settings.selectedAgent = .claudeCode
+        }
         SettingsStore.shared.save(settings)
+        syncDisplayedState(resetQuotaWindow: true)
+        updateUI()
         refresh()
     }
 
@@ -734,12 +883,23 @@ func renderPreview(to directory: URL) -> Int32 {
             risk: .safe,
             updatedAt: Date()
         )
+        let claudePreviewState = OrbState(
+            sourceName: "Claude Code 官方",
+            agentName: "Claude Code",
+            weekly: QuotaWindowValue(remainingPercent: 87, durationMinutes: 10_080, resetsAt: Date().addingTimeInterval(216_000)),
+            risk: .safe,
+            updatedAt: Date()
+        )
 
         let orb = OrbView(frame: NSRect(x: 0, y: 0, width: 74, height: 78))
         orb.animationsEnabled = false
         orb.mode = .weekly
         orb.state = previewState
         try render(view: orb, to: directory.appendingPathComponent("apple-orb-preview.png"))
+        orb.secondaryState = claudePreviewState
+        orb.secondaryMode = .weekly
+        try render(view: orb, to: directory.appendingPathComponent("apple-dual-source-orb-preview.png"))
+        orb.secondaryState = nil
 
         let appIcon = AppIconView(frame: NSRect(x: 0, y: 0, width: 512, height: 512))
         appIcon.state = previewState
@@ -751,6 +911,10 @@ func renderPreview(to directory: URL) -> Int32 {
         detail.expansionProgress = 1
         detail.opensToRight = true
         try render(view: detail, to: directory.appendingPathComponent("apple-expanded-preview.png"))
+        detail.secondaryState = claudePreviewState
+        detail.secondaryMode = .weekly
+        try render(view: detail, to: directory.appendingPathComponent("apple-dual-source-detail-preview.png"))
+        detail.secondaryState = nil
 
         detail.expansionProgress = 0.34
         try render(view: detail, to: directory.appendingPathComponent("apple-hover-liquid-preview.png"))
