@@ -18,31 +18,50 @@
 
 ## 界面预览
 
-### 常驻悬浮球
+### 独立双来源悬浮球
 
-<p align="center"><img src="docs/assets/balance-capsule-orb.png" alt="Balance Capsule 常驻悬浮球" width="760"></p>
+选择“同时显示 Codex 和 Claude Code”后，会出现两个完全独立的悬浮球。Codex 保持蓝色体系，Claude Code 使用紫色体系；两个球可以分别拖动、悬停和展开。
+
+<p align="center"><img src="docs/assets/balance-capsule-dual-orbs.png" alt="Balance Capsule 独立双来源悬浮球" width="324"></p>
+
+### 独立液态玻璃详情
+
+Codex 与 Claude Code 分别拥有自己的详情窗口，不再共用同一张合并卡片。每个面板只展示对应账号的数据、状态和额度窗口。
+
+<p align="center"><img src="docs/assets/balance-capsule-independent-details.png" alt="Codex 与 Claude Code 独立详情面板" width="836"></p>
+
+### Claude Code 额度阶段
+
+Claude Code 会按照当前显示额度切换视觉阶段：紫色表示正常、洋红表示需要留意、玫红表示即将耗尽。Codex 原有配色保持不变。
+
+<p align="center"><img src="docs/assets/balance-capsule-claude-stages.png" alt="Claude Code 不同额度阶段" width="492"></p>
 
 ### 液态悬停动画
 
 <p align="center"><img src="docs/assets/balance-capsule-hover.gif" alt="Balance Capsule 鼠标悬停液态展开动画" width="760"></p>
 
-### 液态玻璃详情面板
+### 单来源详情面板
 
 <p align="center"><img src="docs/assets/balance-capsule-expanded.png" alt="Balance Capsule 液态玻璃详情面板" width="760"></p>
 
 ## 视觉与交互效果
 
 - 78px 常驻液态玻璃悬浮球，支持自由拖动与屏幕边缘吸附。
+- 双来源模式使用两个独立的 78px 悬浮窗口，位置分别保存，互不覆盖。
 - 鼠标滑入悬浮球自动展开详情，无需点击。
+- 悬停 Codex 只打开 Codex 详情；悬停 Claude Code 只打开 Claude Code 详情，两个面板互相独立。
 - 球体与详情面板通过连续液滴颈部自然衔接，包含液面摆动、气泡、刻度、扫光与柔和阴影。
 - 界面使用 AppKit、Core Animation 与 Core Image 实时绘制。
 - 所有主要界面均由代码生成，不使用效果图贴图代替交互界面。
 - 详情面板提供标准、深色两种液态玻璃效果，并可在菜单中调节透明度。
-- 双击悬浮球立即刷新；右键菜单和系统托盘也可刷新、切换数据源或隐藏悬浮球。
+- 双击任意悬浮球立即刷新；右键菜单和系统托盘也可刷新、切换显示来源或隐藏悬浮球。
+- Codex 与 Claude Code 使用不同的矢量玻璃徽章，即使不看颜色也能辨认来源。
 
 ## 功能介绍
 
-- 在“显示来源”菜单中选择仅 Codex、仅 Claude Code，或同时显示两者；双源模式下菜单栏、详情面板与悬浮球都会保留两份独立数据。
+- 在“显示来源”菜单中选择仅 Codex、仅 Claude Code，或同时显示两者。
+- 双来源模式下会创建两套独立悬浮球与详情窗口；每个球分别支持拖动、屏幕边缘吸附、悬停展开和位置记忆。
+- Codex 保持蓝色视觉体系；Claude Code 使用紫色、洋红色、玫红色区分正常、提醒、紧张等额度阶段。
 - Codex 显示当前账号的今日、本月、总计 Token 使用量，单位自动转换为“万 / 亿”。
 - 仅按官方接口实际返回的 5 小时与一周额度显示；两个窗口同时可用时，菜单栏和悬浮球每 3 秒自动轮换，否则固定显示可用窗口。
 - Codex 与 Claude Code 数据独立读取，不混用账号或 Token 统计。
@@ -61,11 +80,14 @@
 
 ### 通用操作
 
-- 拖动：按住悬浮球移动位置。
-- 查看详情：鼠标进入悬浮球后自动展开，移出后收起。
-- 刷新：双击悬浮球，或在右键/托盘菜单选择“立即刷新”。
-- 切换来源：在“数据来源”中选择 Codex 或 Claude Code。
-- 隐藏/显示：托盘菜单会根据当前状态显示“隐藏悬浮球”或“显示悬浮球”。
+- **选择来源**：在菜单栏图标或悬浮球右键菜单的“显示来源”中，选择“仅显示 Codex”“仅显示 Claude Code”或“同时显示 Codex 和 Claude Code”。
+- **分别拖动**：双来源模式下，按住任意悬浮球即可单独移动；两个位置会分别保存。
+- **查看详情**：鼠标进入某个悬浮球后，只展开该来源的详情；移出悬浮球和详情区域后自动收起。
+- **立即刷新**：双击任意悬浮球，或在右键/菜单栏菜单选择“立即刷新”。
+- **切换玻璃效果**：在“详情玻璃效果”中选择标准液态毛玻璃或深色液态玻璃。
+- **调节透明度**：在“详情透明度”中选择 70%、55%、40% 或 25%。
+- **隐藏/显示**：菜单会根据当前状态显示“隐藏悬浮球”或“显示悬浮球”；双来源模式会同时隐藏或恢复两个球。
+- **登录时启动**：勾选“登录时启动”，下次登录 macOS 后自动运行。
 
 ## 工作原理
 
