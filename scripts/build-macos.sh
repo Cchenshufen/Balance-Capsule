@@ -91,7 +91,10 @@ diskutil image create from \
   "$dmg_path"
 
 ditto -c -k --sequesterRsrc --keepParent "$app_bundle" "$zip_path"
-shasum -a 256 "$dmg_path" "$zip_path" > "$artifact_root/SHA256SUMS.txt"
+(
+  cd "$artifact_root"
+  shasum -a 256 "$(basename "$dmg_path")" "$(basename "$zip_path")" > SHA256SUMS.txt
+)
 
 file "$binary_dir/BalanceCapsule"
 codesign --verify --deep --strict --verbose=2 "$app_bundle"
