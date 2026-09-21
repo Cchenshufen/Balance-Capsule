@@ -5,6 +5,11 @@ import ImageIO
 import UniformTypeIdentifiers
 
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
+    private enum OrbSlot {
+        case primary
+        case secondary
+    }
+
     private var settings = SettingsStore.shared.load()
     private var state = OrbState()
     private var sourceStates: [AgentSource: OrbState] = [:]
@@ -16,16 +21,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var detailView: DetailView!
     private var detailContainer: NSView!
     private var detailGlassView: LiquidGlassEffectView!
+    private var secondaryOrbPanel: OrbPanel!
+    private var secondaryDetailPanel: DetailPanel!
+    private var secondaryOrbContainer: NSView!
+    private var secondaryOrbGlassView: LiquidGlassEffectView!
+    private var secondaryOrbView: OrbView!
+    private var secondaryDetailView: DetailView!
+    private var secondaryDetailContainer: NSView!
+    private var secondaryDetailGlassView: LiquidGlassEffectView!
     private var statusItem: NSStatusItem!
     private var menu: NSMenu!
     private var hideDetailWorkItem: DispatchWorkItem?
     private var detailAnimationTimer: Timer?
+    private var secondaryHideDetailWorkItem: DispatchWorkItem?
+    private var secondaryDetailAnimationTimer: Timer?
     private var refreshTimer: Timer?
     private var quotaDisplayTimer: Timer?
     private var refreshGeneration = 0
     private var refreshInProgress = false
     private var refreshQueued = false
     private var detailRequested = false
+    private var secondaryDetailRequested = false
     private var orbEnabled = true
     private var displayedQuotaWindow: QuotaWindowMode = .fiveHour
     private var instanceLockDescriptor: Int32 = -1
@@ -61,6 +77,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         createStatusItem()
         updateUI()
         orbPanel.orderFrontRegardless()
+        if isShowingBothSources {
+            secondaryOrbPanel.orderFrontRegardless()
+        }
         refresh()
         refreshTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
             self?.refresh()
@@ -74,9 +93,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         refreshTimer?.invalidate()
         quotaDisplayTimer?.invalidate()
         detailAnimationTimer?.invalidate()
+        secondaryDetailAnimationTimer?.invalidate()
         if orbPanel != nil {
             settings.orbX = Double(orbPanel.frame.origin.x)
             settings.orbY = Double(orbPanel.frame.origin.y)
+            if secondaryOrbPanel != nil {
+                settings.secondaryOrbX = Double(secondaryOrbPanel.frame.origin.x)
+                settings.secondaryOrbY = Double(secondaryOrbPanel.frame.origin.y)
+            }
             SettingsStore.shared.save(settings)
         }
         releaseInstanceLock()
@@ -143,25 +167,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         orbContainer = NSView(frame: NSRect(origin: .zero, size: size))
         orbContainer.wantsLayer = true
         orbContainer.layer?.backgroundColor = NSColor.clear.cgColor
-        orbGlassView = LiquidGlassEffectView(frame: NSRect(x: 6, y: 8, width: 62, height: 62))
-        orbGlassView.material = .underWindowBackground
-        orbGlassView.blendingMode = .behindWindow
-        orbGlassView.state = .active
-        orbGlassView.isEmphasized = false
-        orbGlassView.wantsLayer = true
-        orbGlassView.layer?.cornerRadius = 31
-        orbGlassView.layer?.masksToBounds = true
-        orbGlassView.alphaValue = 1
-        orbGlassView.updateRefraction(
-            primitives: [.ellipse(NSRect(x: 0, y: 0, width: 62, height: 62))],
-            strength: 13,
-            edgeDepth: 11
-        )
+        orbGlassView = makeOrbGlassView(frame: NSRect(x: 6, y: 8, width: 62, height: 62))
         orbView = OrbView(frame: NSRect(origin: .zero, size: size))
         orbView.animationsEnabled = settings.animationsEnabled
         orbView.mode = displayedQuotaWindow
         orbView.onHoverChanged = { [weak self] hovered in
-            hovered ? self?.showDetail() : self?.scheduleDetailHide()
+            hovered ? self?.showDetail(for: .primary) : self?.scheduleDetailHide(for: .primary)
         }
         orbView.onPositionCommitted = { [weak self] point in
             self?.settings.orbX = Double(point.x)
@@ -199,16 +210,120 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         detailView.mode = detailQuotaWindow
         applyDetailGlassConfiguration()
         detailView.onHoverChanged = { [weak self] hovered in
-            hovered ? self?.cancelDetailHide() : self?.scheduleDetailHide()
+            hovered ? self?.cancelDetailHide(for: .primary) : self?.scheduleDetailHide(for: .primary)
         }
         detailView.onRightClick = { [weak self] event in self?.showMenu(for: event) }
         detailView.onRefresh = { [weak self] in self?.refresh() }
         detailView.onPanelMoved = { [weak self] origin, committed in
-            self?.syncOrbPosition(fromDetailOrigin: origin, committed: committed)
+            self?.syncOrbPosition(fromDetailOrigin: origin, committed: committed, slot: .primary)
         }
         detailContainer.addSubview(detailGlassView)
         detailContainer.addSubview(detailView)
         detailPanel.contentView = detailContainer
+
+        let secondaryOrigin: NSPoint
+        if let x = settings.secondaryOrbX, let y = settings.secondaryOrbY {
+            secondaryOrigin = NSPoint(x: x, y: y)
+        } else {
+            let horizontalOffset = size.width + 14
+            let visible = (NSScreen.screens.first { $0.frame.contains(origin) } ?? NSScreen.main)?.visibleFrame
+            let opensToRight = visible.map { origin.x + horizontalOffset + size.width <= $0.maxX } ?? true
+            secondaryOrigin = snapOrb(
+                origin: NSPoint(
+                    x: opensToRight ? origin.x + horizontalOffset : origin.x - horizontalOffset,
+                    y: origin.y
+                ),
+                size: size
+            )
+        }
+        secondaryOrbPanel = OrbPanel(
+            contentRect: NSRect(origin: secondaryOrigin, size: size),
+            styleMask: [.borderless, .nonactivatingPanel],
+            backing: .buffered,
+            defer: false
+        )
+        configure(panel: secondaryOrbPanel)
+        secondaryOrbPanel.level = .floating
+        secondaryOrbPanel.acceptsMouseMovedEvents = true
+        secondaryOrbPanel.ignoresMouseEvents = false
+        secondaryOrbContainer = NSView(frame: NSRect(origin: .zero, size: size))
+        secondaryOrbContainer.wantsLayer = true
+        secondaryOrbContainer.layer?.backgroundColor = NSColor.clear.cgColor
+        secondaryOrbGlassView = makeOrbGlassView(frame: NSRect(x: 6, y: 8, width: 62, height: 62))
+        secondaryOrbView = OrbView(frame: NSRect(origin: .zero, size: size))
+        secondaryOrbView.animationsEnabled = settings.animationsEnabled
+        secondaryOrbView.mode = displayedQuotaWindow
+        secondaryOrbView.onHoverChanged = { [weak self] hovered in
+            hovered ? self?.showDetail(for: .secondary) : self?.scheduleDetailHide(for: .secondary)
+        }
+        secondaryOrbView.onPositionCommitted = { [weak self] point in
+            self?.settings.secondaryOrbX = Double(point.x)
+            self?.settings.secondaryOrbY = Double(point.y)
+            if let settings = self?.settings { SettingsStore.shared.save(settings) }
+        }
+        secondaryOrbView.onRightClick = { [weak self] event in self?.showMenu(for: event) }
+        secondaryOrbView.onRefresh = { [weak self] in self?.refresh() }
+        secondaryOrbContainer.addSubview(secondaryOrbGlassView)
+        secondaryOrbContainer.addSubview(secondaryOrbView)
+        secondaryOrbPanel.contentView = secondaryOrbContainer
+
+        secondaryDetailPanel = DetailPanel(
+            contentRect: NSRect(origin: .zero, size: detailSize),
+            styleMask: [.borderless, .nonactivatingPanel],
+            backing: .buffered,
+            defer: false
+        )
+        configure(panel: secondaryDetailPanel)
+        secondaryDetailPanel.level = .floating
+        secondaryDetailPanel.acceptsMouseMovedEvents = true
+        secondaryDetailPanel.ignoresMouseEvents = false
+        secondaryDetailPanel.alphaValue = 1
+        secondaryDetailContainer = NSView(frame: NSRect(origin: .zero, size: detailSize))
+        secondaryDetailContainer.wantsLayer = true
+        secondaryDetailContainer.layer?.backgroundColor = NSColor.clear.cgColor
+        secondaryDetailGlassView = LiquidGlassEffectView(frame: .zero)
+        secondaryDetailGlassView.blendingMode = .behindWindow
+        secondaryDetailGlassView.state = .active
+        secondaryDetailGlassView.alphaValue = 0
+        secondaryDetailGlassView.wantsLayer = true
+        secondaryDetailGlassView.layer?.masksToBounds = true
+        secondaryDetailView = DetailView(frame: NSRect(origin: .zero, size: detailSize))
+        secondaryDetailView.mode = detailQuotaWindow
+        secondaryDetailView.onHoverChanged = { [weak self] hovered in
+            hovered ? self?.cancelDetailHide(for: .secondary) : self?.scheduleDetailHide(for: .secondary)
+        }
+        secondaryDetailView.onRightClick = { [weak self] event in self?.showMenu(for: event) }
+        secondaryDetailView.onRefresh = { [weak self] in self?.refresh() }
+        secondaryDetailView.onPanelMoved = { [weak self] origin, committed in
+            self?.syncOrbPosition(fromDetailOrigin: origin, committed: committed, slot: .secondary)
+        }
+        secondaryDetailContainer.addSubview(secondaryDetailGlassView)
+        secondaryDetailContainer.addSubview(secondaryDetailView)
+        secondaryDetailPanel.contentView = secondaryDetailContainer
+        applyDetailGlassConfiguration()
+    }
+
+    private func makeOrbGlassView(frame: NSRect) -> LiquidGlassEffectView {
+        let glassView = LiquidGlassEffectView(frame: frame)
+        glassView.material = .underWindowBackground
+        glassView.blendingMode = .behindWindow
+        glassView.state = .active
+        glassView.isEmphasized = false
+        glassView.wantsLayer = true
+        glassView.layer?.masksToBounds = true
+        glassView.alphaValue = 1
+        configureOrbGlassView(glassView, frame: frame)
+        return glassView
+    }
+
+    private func configureOrbGlassView(_ glassView: LiquidGlassEffectView, frame: NSRect) {
+        glassView.frame = frame
+        glassView.layer?.cornerRadius = frame.width / 2
+        glassView.updateRefraction(
+            primitives: [.ellipse(NSRect(origin: .zero, size: frame.size))],
+            strength: frame.width >= 60 ? 13 : 8,
+            edgeDepth: frame.width >= 60 ? 11 : 6
+        )
     }
 
     private var selectedDetailGlassStyle: DetailGlassStyle {
@@ -227,20 +342,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func applyDetailGlassConfiguration() {
+        applyDetailGlassConfiguration(to: detailGlassView, detailView: detailView, slot: .primary)
+        if secondaryDetailGlassView != nil, secondaryDetailView != nil {
+            applyDetailGlassConfiguration(
+                to: secondaryDetailGlassView,
+                detailView: secondaryDetailView,
+                slot: .secondary
+            )
+        }
+    }
+
+    private func applyDetailGlassConfiguration(
+        to glassView: LiquidGlassEffectView,
+        detailView: DetailView,
+        slot: OrbSlot
+    ) {
         let style = selectedDetailGlassStyle
         switch style {
         case .frosted:
-            detailGlassView.material = .popover
-            detailGlassView.isEmphasized = false
-            detailGlassView.appearance = NSAppearance(named: .aqua)
+            glassView.material = .popover
+            glassView.isEmphasized = false
+            glassView.appearance = NSAppearance(named: .aqua)
         case .midnight:
-            detailGlassView.material = .hudWindow
-            detailGlassView.isEmphasized = true
-            detailGlassView.appearance = NSAppearance(named: .darkAqua)
+            glassView.material = .hudWindow
+            glassView.isEmphasized = true
+            glassView.appearance = NSAppearance(named: .darkAqua)
         }
         detailView.glassStyle = style
         detailView.glassTransparency = selectedDetailGlassTransparency
-        updateGlassFrame(progress: detailView.expansionProgress)
+        updateGlassFrame(progress: detailView.expansionProgress, slot: slot)
     }
 
     private func configure(panel: NSPanel) {
@@ -341,17 +471,48 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         NSMenu.popUpContextMenu(menu, with: event, for: event.window?.contentView ?? orbView)
     }
 
-    private func showDetail() {
-        cancelDetailHide()
+    private func orbPanel(for slot: OrbSlot) -> OrbPanel {
+        slot == .primary ? orbPanel : secondaryOrbPanel
+    }
+
+    private func detailPanel(for slot: OrbSlot) -> DetailPanel {
+        slot == .primary ? detailPanel : secondaryDetailPanel
+    }
+
+    private func detailView(for slot: OrbSlot) -> DetailView {
+        slot == .primary ? detailView : secondaryDetailView
+    }
+
+    private func detailGlassView(for slot: OrbSlot) -> LiquidGlassEffectView {
+        slot == .primary ? detailGlassView : secondaryDetailGlassView
+    }
+
+    private func isDetailRequested(for slot: OrbSlot) -> Bool {
+        slot == .primary ? detailRequested : secondaryDetailRequested
+    }
+
+    private func setDetailRequested(_ requested: Bool, for slot: OrbSlot) {
+        if slot == .primary {
+            detailRequested = requested
+        } else {
+            secondaryDetailRequested = requested
+        }
+    }
+
+    private func showDetail(for slot: OrbSlot) {
+        cancelDetailHide(for: slot)
         guard orbEnabled else { return }
-        guard !detailRequested else { return }
-        detailRequested = true
-        let orb = orbPanel.frame
-        let detailSize = detailPanel.frame.size
+        if slot == .secondary, !isShowingBothSources { return }
+        guard !isDetailRequested(for: slot) else { return }
+        setDetailRequested(true, for: slot)
+        let orb = orbPanel(for: slot).frame
+        let targetDetailPanel = detailPanel(for: slot)
+        let targetDetailView = detailView(for: slot)
+        let detailSize = targetDetailPanel.frame.size
         let visible = (NSScreen.screens.first { $0.frame.intersects(orb) } ?? NSScreen.main)?.visibleFrame
         let opensRight = visible.map { orb.minX + detailSize.width <= $0.maxX } ?? true
-        detailView.opensToRight = opensRight
-        updateGlassFrame(progress: detailView.expansionProgress)
+        targetDetailView.opensToRight = opensRight
+        updateGlassFrame(progress: targetDetailView.expansionProgress, slot: slot)
         var origin = NSPoint(
             x: opensRight ? orb.minX : orb.minX - 336,
             y: orb.minY - 66
@@ -360,45 +521,63 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             origin.x = min(max(origin.x, visible.minX), visible.maxX - detailSize.width)
             origin.y = min(max(origin.y, visible.minY), visible.maxY - detailSize.height)
         }
-        detailPanel.setFrameOrigin(origin)
-        detailPanel.orderFrontRegardless()
-        animateDetail(to: 1)
+        targetDetailPanel.setFrameOrigin(origin)
+        targetDetailPanel.orderFrontRegardless()
+        animateDetail(to: 1, slot: slot)
     }
 
-    private func scheduleDetailHide() {
-        guard detailRequested else { return }
-        cancelDetailHide()
-        let work = DispatchWorkItem { [weak self] in self?.hideDetail() }
-        hideDetailWorkItem = work
+    private func scheduleDetailHide(for slot: OrbSlot) {
+        guard isDetailRequested(for: slot) else { return }
+        cancelDetailHide(for: slot)
+        let work = DispatchWorkItem { [weak self] in self?.hideDetail(for: slot) }
+        if slot == .primary {
+            hideDetailWorkItem = work
+        } else {
+            secondaryHideDetailWorkItem = work
+        }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.32, execute: work)
     }
 
-    private func cancelDetailHide() {
-        hideDetailWorkItem?.cancel()
-        hideDetailWorkItem = nil
-    }
-
-    private func hideDetail() {
-        guard detailRequested else { return }
-        detailRequested = false
-        animateDetail(to: 0) { [weak self] in
-            self?.detailPanel.orderOut(nil)
-            guard self?.orbEnabled == true else { return }
-            self?.orbPanel.alphaValue = 1
-            self?.orbPanel.orderFrontRegardless()
+    private func cancelDetailHide(for slot: OrbSlot) {
+        if slot == .primary {
+            hideDetailWorkItem?.cancel()
+            hideDetailWorkItem = nil
+        } else {
+            secondaryHideDetailWorkItem?.cancel()
+            secondaryHideDetailWorkItem = nil
         }
     }
 
-    private func animateDetail(to target: CGFloat, completion: (() -> Void)? = nil) {
-        detailAnimationTimer?.invalidate()
-        let start = detailView.expansionProgress
+    private func hideDetail(for slot: OrbSlot) {
+        guard isDetailRequested(for: slot) else { return }
+        setDetailRequested(false, for: slot)
+        animateDetail(to: 0, slot: slot) { [weak self] in
+            guard let self else { return }
+            self.detailPanel(for: slot).orderOut(nil)
+            guard self.orbEnabled else { return }
+            if slot == .secondary, !self.isShowingBothSources { return }
+            let targetOrbPanel = self.orbPanel(for: slot)
+            targetOrbPanel.alphaValue = 1
+            targetOrbPanel.orderFrontRegardless()
+        }
+    }
+
+    private func animateDetail(to target: CGFloat, slot: OrbSlot, completion: (() -> Void)? = nil) {
+        let targetDetailView = detailView(for: slot)
+        let targetOrbPanel = orbPanel(for: slot)
+        if slot == .primary {
+            detailAnimationTimer?.invalidate()
+        } else {
+            secondaryDetailAnimationTimer?.invalidate()
+        }
+        let start = targetDetailView.expansionProgress
         if abs(start - target) < 0.001 {
             completion?()
             return
         }
         let startedAt = Date()
         let duration = target > start ? 1.02 : 0.32
-        detailAnimationTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 60.0, repeats: true) { [weak self] timer in
+        let timer = Timer.scheduledTimer(withTimeInterval: 1.0 / 60.0, repeats: true) { [weak self] timer in
             guard let self else {
                 timer.invalidate()
                 return
@@ -412,37 +591,52 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 eased = raw * raw * (3 - 2 * raw)
             }
             let value = start + (target - start) * CGFloat(eased)
-            self.detailView.expansionProgress = value
-            self.updateGlassFrame(progress: value)
-            self.orbPanel.alphaValue = target > start ? max(0, 1 - value * 5.5) : min(1, 1 - value)
-            if target > start, value > 0.22, self.orbPanel.isVisible {
-                self.orbPanel.orderOut(nil)
+            targetDetailView.expansionProgress = value
+            self.updateGlassFrame(progress: value, slot: slot)
+            targetOrbPanel.alphaValue = target > start ? max(0, 1 - value * 5.5) : min(1, 1 - value)
+            if target > start, value > 0.22, targetOrbPanel.isVisible {
+                targetOrbPanel.orderOut(nil)
             }
             if raw >= 1 {
                 timer.invalidate()
-                self.detailAnimationTimer = nil
-                self.detailView.expansionProgress = target
-                self.updateGlassFrame(progress: target)
-                self.orbPanel.alphaValue = target > 0 ? 0 : 1
+                if slot == .primary {
+                    self.detailAnimationTimer = nil
+                } else {
+                    self.secondaryDetailAnimationTimer = nil
+                }
+                targetDetailView.expansionProgress = target
+                self.updateGlassFrame(progress: target, slot: slot)
+                targetOrbPanel.alphaValue = target > 0 ? 0 : 1
                 if target <= 0 {
-                    self.orbPanel.orderFrontRegardless()
+                    if slot == .primary || self.isShowingBothSources {
+                        targetOrbPanel.orderFrontRegardless()
+                    }
                 }
                 completion?()
             }
         }
+        if slot == .primary {
+            detailAnimationTimer = timer
+        } else {
+            secondaryDetailAnimationTimer = timer
+        }
     }
 
-    private func updateGlassFrame(progress: CGFloat) {
+    private func updateGlassFrame(progress: CGFloat, slot: OrbSlot) {
         guard detailGlassView != nil, detailView != nil else { return }
+        if slot == .secondary,
+           (secondaryDetailGlassView == nil || secondaryDetailView == nil) { return }
+        let targetDetailView = detailView(for: slot)
+        let targetGlassView = detailGlassView(for: slot)
         let normalized = max(0, min(1, progress))
         let neckProgress = max(0, min(1, (normalized - 0.16) / 0.36))
         let cardProgress = max(0, min(1, (normalized - 0.42) / 0.58))
         let easedNeck = 1 - pow(1 - neckProgress, 3)
         let easedCard = cardProgress * cardProgress * (3 - 2 * cardProgress)
-        let orbRect = detailView.opensToRight
+        let orbRect = targetDetailView.opensToRight
             ? NSRect(x: 6, y: 74, width: 62, height: 62)
-            : NSRect(x: detailView.bounds.maxX - 68, y: 74, width: 62, height: 62)
-        let cardRect = detailView.opensToRight
+            : NSRect(x: targetDetailView.bounds.maxX - 68, y: 74, width: 62, height: 62)
+        let cardRect = targetDetailView.opensToRight
             ? NSRect(x: 92, y: 12, width: 310, height: 186)
             : NSRect(x: 8, y: 12, width: 310, height: 186)
         let maskPath = CGMutablePath()
@@ -453,7 +647,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             let neckPath = makeLiquidNeckPath(
                 orbRect: orbRect,
                 cardRect: cardRect,
-                opensToRight: detailView.opensToRight,
+                opensToRight: targetDetailView.opensToRight,
                 neckProgress: easedNeck,
                 cardProgress: easedCard
             )
@@ -466,13 +660,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if easedCard > 0.001 {
             let width = max(2, cardRect.width * easedCard)
             let height = 26 + (cardRect.height - 26) * easedCard
-            let visibleCard = detailView.opensToRight
+            let visibleCard = targetDetailView.opensToRight
                 ? CGRect(x: cardRect.minX, y: orbRect.midY - height / 2, width: width, height: height)
                 : CGRect(x: cardRect.maxX - width, y: orbRect.midY - height / 2, width: width, height: height)
             let unifiedPath = makeUnifiedGlassPath(
                 cardRect: visibleCard,
                 orbRect: orbRect,
-                opensToRight: detailView.opensToRight,
+                opensToRight: targetDetailView.opensToRight,
                 progress: easedCard
             )
             maskPath.addPath(unifiedPath.compatibleCGPath())
@@ -480,38 +674,46 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             refractionPrimitives.append(.roundedRect(unifiedPath.bounds, min(15, unifiedPath.bounds.height / 2)))
         }
 
-        detailGlassView.frame = detailView.bounds
+        targetGlassView.frame = targetDetailView.bounds
         let maskLayer = CAShapeLayer()
-        maskLayer.frame = detailView.bounds
+        maskLayer.frame = targetDetailView.bounds
         maskLayer.path = maskPath
-        detailGlassView.layer?.mask = maskLayer
-        detailGlassView.updateRefraction(
+        targetGlassView.layer?.mask = maskLayer
+        targetGlassView.updateRefraction(
             primitives: refractionPrimitives,
             strength: 18 + easedNeck * 8,
             edgeDepth: 16
         )
-        detailGlassView.alphaValue = selectedDetailBackdropOpacity
+        targetGlassView.alphaValue = selectedDetailBackdropOpacity
     }
 
-    private func syncOrbPosition(fromDetailOrigin origin: NSPoint, committed: Bool) {
-        let detailWidth = detailPanel.frame.width
+    private func syncOrbPosition(fromDetailOrigin origin: NSPoint, committed: Bool, slot: OrbSlot) {
+        let targetDetailPanel = detailPanel(for: slot)
+        let targetDetailView = detailView(for: slot)
+        let targetOrbPanel = orbPanel(for: slot)
+        let detailWidth = targetDetailPanel.frame.width
         let rawOrbOrigin = NSPoint(
-            x: detailView.opensToRight ? origin.x : origin.x + detailWidth - 74,
+            x: targetDetailView.opensToRight ? origin.x : origin.x + detailWidth - 74,
             y: origin.y + 66
         )
         let orbOrigin = committed
-            ? snapOrb(origin: rawOrbOrigin, size: orbPanel.frame.size)
+            ? snapOrb(origin: rawOrbOrigin, size: targetOrbPanel.frame.size)
             : rawOrbOrigin
-        orbPanel.setFrameOrigin(orbOrigin)
+        targetOrbPanel.setFrameOrigin(orbOrigin)
 
         if committed {
             let alignedDetailOrigin = NSPoint(
-                x: detailView.opensToRight ? orbOrigin.x : orbOrigin.x - detailWidth + 74,
+                x: targetDetailView.opensToRight ? orbOrigin.x : orbOrigin.x - detailWidth + 74,
                 y: orbOrigin.y - 66
             )
-            detailPanel.setFrameOrigin(alignedDetailOrigin)
-            settings.orbX = Double(orbOrigin.x)
-            settings.orbY = Double(orbOrigin.y)
+            targetDetailPanel.setFrameOrigin(alignedDetailOrigin)
+            if slot == .primary {
+                settings.orbX = Double(orbOrigin.x)
+                settings.orbY = Double(orbOrigin.y)
+            } else {
+                settings.secondaryOrbX = Double(orbOrigin.x)
+                settings.secondaryOrbY = Double(orbOrigin.y)
+            }
             SettingsStore.shared.save(settings)
         }
     }
@@ -626,14 +828,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             : nil
         orbView?.state = codexState
         orbView?.mode = activeQuotaWindow(for: codexState)
-        orbView?.secondaryState = claudeState
-        orbView?.secondaryMode = claudeState.map { activeQuotaWindow(for: $0) } ?? .weekly
+        orbView?.sourceBadge = isShowingBothSources ? .codex : nil
         detailView?.state = codexState
         detailView?.mode = detailQuotaWindow(for: codexState)
-        detailView?.secondaryState = claudeState
-        detailView?.secondaryMode = claudeState.map { detailQuotaWindow(for: $0) } ?? .weekly
+        detailView?.secondaryState = nil
+        detailView?.statusRisk = combinedDisplayRisk(states: [codexState])
+        if let claudeState {
+            secondaryOrbView?.state = claudeState
+            secondaryOrbView?.mode = activeQuotaWindow(for: claudeState)
+            secondaryOrbView?.sourceBadge = .claudeCode
+            secondaryDetailView?.state = claudeState
+            secondaryDetailView?.mode = detailQuotaWindow(for: claudeState)
+            secondaryDetailView?.secondaryState = nil
+            secondaryDetailView?.statusRisk = combinedDisplayRisk(states: [claudeState])
+            if orbEnabled, !secondaryDetailRequested {
+                secondaryOrbPanel?.alphaValue = 1
+                secondaryOrbPanel?.orderFrontRegardless()
+            }
+        } else {
+            resetDetail(for: .secondary)
+            secondaryOrbPanel?.orderOut(nil)
+        }
         let risk = combinedDisplayRisk(states: [codexState, claudeState].compactMap { $0 })
-        detailView?.statusRisk = risk
         statusItem?.button?.image = makeMenuBarImage(color: risk.color)
         statusItem?.button?.title = statusTitle(for: displayMode)
         statusItem?.button?.toolTip = summaryText()
@@ -731,20 +947,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func toggleOrbVisibility() {
         orbEnabled.toggle()
-        cancelDetailHide()
-        detailRequested = false
-        detailAnimationTimer?.invalidate()
-        detailAnimationTimer = nil
-        detailView.expansionProgress = 0
-        detailGlassView.alphaValue = 0
-        detailPanel.orderOut(nil)
+        resetDetail(for: .primary)
+        resetDetail(for: .secondary)
         if orbEnabled {
             orbPanel.alphaValue = 1
             orbPanel.orderFrontRegardless()
+            if isShowingBothSources {
+                secondaryOrbPanel.alphaValue = 1
+                secondaryOrbPanel.orderFrontRegardless()
+            }
         } else {
             orbPanel.orderOut(nil)
+            secondaryOrbPanel.orderOut(nil)
         }
         rebuildMenu()
+    }
+
+    private func resetDetail(for slot: OrbSlot) {
+        cancelDetailHide(for: slot)
+        setDetailRequested(false, for: slot)
+        if slot == .primary {
+            detailAnimationTimer?.invalidate()
+            detailAnimationTimer = nil
+        } else {
+            secondaryDetailAnimationTimer?.invalidate()
+            secondaryDetailAnimationTimer = nil
+        }
+        let targetDetailView = detailView(for: slot)
+        targetDetailView.expansionProgress = 0
+        detailGlassView(for: slot).alphaValue = 0
+        detailPanel(for: slot).orderOut(nil)
+        orbPanel(for: slot).alphaValue = 1
     }
 
     @objc private func selectDetailGlassStyle(_ sender: NSMenuItem) {
@@ -896,10 +1129,42 @@ func renderPreview(to directory: URL) -> Int32 {
         orb.mode = .weekly
         orb.state = previewState
         try render(view: orb, to: directory.appendingPathComponent("apple-orb-preview.png"))
-        orb.secondaryState = claudePreviewState
-        orb.secondaryMode = .weekly
-        try render(view: orb, to: directory.appendingPathComponent("apple-dual-source-orb-preview.png"))
-        orb.secondaryState = nil
+        let claudeOrb = OrbView(frame: NSRect(x: 0, y: 0, width: 74, height: 78))
+        claudeOrb.animationsEnabled = false
+        claudeOrb.mode = .weekly
+        claudeOrb.state = claudePreviewState
+        orb.sourceBadge = .codex
+        claudeOrb.sourceBadge = .claudeCode
+        try render(view: claudeOrb, to: directory.appendingPathComponent("apple-claude-orb-preview.png"))
+        let orbPair = NSView(frame: NSRect(x: 0, y: 0, width: 162, height: 78))
+        orbPair.wantsLayer = true
+        orbPair.layer?.backgroundColor = NSColor.clear.cgColor
+        orb.frame.origin = .zero
+        claudeOrb.frame.origin = NSPoint(x: 88, y: 0)
+        orbPair.addSubview(orb)
+        orbPair.addSubview(claudeOrb)
+        try render(view: orbPair, to: directory.appendingPathComponent("apple-dual-source-orb-preview.png"))
+        let claudeStagePreview = NSView(frame: NSRect(x: 0, y: 0, width: 246, height: 78))
+        claudeStagePreview.wantsLayer = true
+        claudeStagePreview.layer?.backgroundColor = NSColor.clear.cgColor
+        for (index, percent) in [87.0, 35.0, 12.0].enumerated() {
+            let stageOrb = OrbView(frame: NSRect(x: CGFloat(index * 86), y: 0, width: 74, height: 78))
+            stageOrb.animationsEnabled = false
+            stageOrb.mode = .weekly
+            stageOrb.sourceBadge = .claudeCode
+            stageOrb.state = OrbState(
+                sourceName: "Claude Code 官方",
+                agentName: "Claude Code",
+                weekly: QuotaWindowValue(remainingPercent: percent, durationMinutes: 10_080, resetsAt: nil),
+                risk: risk(for: percent),
+                updatedAt: Date()
+            )
+            claudeStagePreview.addSubview(stageOrb)
+        }
+        try render(
+            view: claudeStagePreview,
+            to: directory.appendingPathComponent("apple-claude-stage-preview.png")
+        )
 
         let appIcon = AppIconView(frame: NSRect(x: 0, y: 0, width: 512, height: 512))
         appIcon.state = previewState
@@ -911,10 +1176,20 @@ func renderPreview(to directory: URL) -> Int32 {
         detail.expansionProgress = 1
         detail.opensToRight = true
         try render(view: detail, to: directory.appendingPathComponent("apple-expanded-preview.png"))
-        detail.secondaryState = claudePreviewState
-        detail.secondaryMode = .weekly
-        try render(view: detail, to: directory.appendingPathComponent("apple-dual-source-detail-preview.png"))
-        detail.secondaryState = nil
+        let claudeDetail = DetailView(frame: NSRect(x: 0, y: 0, width: 410, height: 210))
+        claudeDetail.state = claudePreviewState
+        claudeDetail.mode = .weekly
+        claudeDetail.expansionProgress = 1
+        claudeDetail.opensToRight = true
+        try render(view: claudeDetail, to: directory.appendingPathComponent("apple-claude-detail-preview.png"))
+        let detailPair = NSView(frame: NSRect(x: 0, y: 0, width: 836, height: 210))
+        detailPair.wantsLayer = true
+        detailPair.layer?.backgroundColor = NSColor.clear.cgColor
+        detail.frame.origin = .zero
+        claudeDetail.frame.origin = NSPoint(x: 426, y: 0)
+        detailPair.addSubview(detail)
+        detailPair.addSubview(claudeDetail)
+        try render(view: detailPair, to: directory.appendingPathComponent("apple-dual-source-detail-preview.png"))
 
         detail.expansionProgress = 0.34
         try render(view: detail, to: directory.appendingPathComponent("apple-hover-liquid-preview.png"))

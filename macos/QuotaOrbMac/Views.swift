@@ -1,5 +1,77 @@
 import AppKit
 
+private struct AgentAccentPalette {
+    let primary: NSColor
+    let secondary: NSColor
+    let soft: NSColor
+}
+
+private func displayedRisk(for state: OrbState, mode: QuotaWindowMode) -> QuotaRisk {
+    if state.risk == .error { return .error }
+    guard let percent = state.selectedPercent(mode: mode) else { return state.risk }
+    let quotaRisk = risk(for: percent)
+    if state.isStale, quotaRisk.severity < QuotaRisk.warning.severity { return .warning }
+    return quotaRisk
+}
+
+private func accentPalette(for state: OrbState, risk quotaRisk: QuotaRisk) -> AgentAccentPalette {
+    let isClaude = state.agentName == "Claude Code"
+    if isClaude {
+        switch quotaRisk {
+        case .loading, .safe:
+            return AgentAccentPalette(
+                primary: NSColor(calibratedRed: 0.62, green: 0.43, blue: 0.98, alpha: 1),
+                secondary: NSColor(calibratedRed: 0.43, green: 0.27, blue: 0.86, alpha: 1),
+                soft: NSColor(calibratedRed: 0.82, green: 0.73, blue: 1, alpha: 1)
+            )
+        case .warning:
+            return AgentAccentPalette(
+                primary: NSColor(calibratedRed: 0.88, green: 0.42, blue: 0.87, alpha: 1),
+                secondary: NSColor(calibratedRed: 0.65, green: 0.27, blue: 0.79, alpha: 1),
+                soft: NSColor(calibratedRed: 0.96, green: 0.72, blue: 0.94, alpha: 1)
+            )
+        case .critical:
+            return AgentAccentPalette(
+                primary: NSColor(calibratedRed: 0.98, green: 0.34, blue: 0.57, alpha: 1),
+                secondary: NSColor(calibratedRed: 0.76, green: 0.17, blue: 0.43, alpha: 1),
+                soft: NSColor(calibratedRed: 1, green: 0.68, blue: 0.79, alpha: 1)
+            )
+        case .error:
+            return AgentAccentPalette(
+                primary: NSColor(calibratedRed: 0.84, green: 0.29, blue: 0.49, alpha: 1),
+                secondary: NSColor(calibratedRed: 0.60, green: 0.17, blue: 0.37, alpha: 1),
+                soft: NSColor(calibratedRed: 0.96, green: 0.66, blue: 0.77, alpha: 1)
+            )
+        }
+    }
+    switch quotaRisk {
+    case .loading, .safe:
+        return AgentAccentPalette(
+            primary: NSColor(calibratedRed: 0.24, green: 0.77, blue: 0.98, alpha: 1),
+            secondary: NSColor(calibratedRed: 0.18, green: 0.49, blue: 0.94, alpha: 1),
+            soft: NSColor(calibratedRed: 0.67, green: 0.92, blue: 1, alpha: 1)
+        )
+    case .warning:
+        return AgentAccentPalette(
+            primary: NSColor(calibratedRed: 0.98, green: 0.76, blue: 0.28, alpha: 1),
+            secondary: NSColor(calibratedRed: 0.94, green: 0.50, blue: 0.18, alpha: 1),
+            soft: NSColor(calibratedRed: 1, green: 0.88, blue: 0.60, alpha: 1)
+        )
+    case .critical:
+        return AgentAccentPalette(
+            primary: NSColor(calibratedRed: 0.98, green: 0.40, blue: 0.38, alpha: 1),
+            secondary: NSColor(calibratedRed: 0.86, green: 0.22, blue: 0.29, alpha: 1),
+            soft: NSColor(calibratedRed: 1, green: 0.70, blue: 0.66, alpha: 1)
+        )
+    case .error:
+        return AgentAccentPalette(
+            primary: NSColor(calibratedRed: 0.95, green: 0.48, blue: 0.53, alpha: 1),
+            secondary: NSColor(calibratedRed: 0.78, green: 0.24, blue: 0.34, alpha: 1),
+            soft: NSColor(calibratedRed: 1, green: 0.70, blue: 0.75, alpha: 1)
+        )
+    }
+}
+
 final class OrbPanel: NSPanel {
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
@@ -13,8 +85,7 @@ final class DetailPanel: NSPanel {
 final class OrbView: NSView {
     var state = OrbState() { didSet { needsDisplay = true } }
     var mode: QuotaWindowMode = .fiveHour { didSet { needsDisplay = true } }
-    var secondaryState: OrbState? { didSet { needsDisplay = true } }
-    var secondaryMode: QuotaWindowMode = .fiveHour { didSet { needsDisplay = true } }
+    var sourceBadge: AgentSource? { didSet { needsDisplay = true } }
     var animationsEnabled = true
     var onHoverChanged: ((Bool) -> Void)?
     var onPositionCommitted: ((NSPoint) -> Void)?
@@ -103,39 +174,6 @@ final class OrbView: NSView {
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
         let bob = animationsEnabled ? sin(animationPhase * 0.72) * 0.65 : 0
-        if let secondaryState {
-            drawAppleOrb(
-                state: state,
-                mode: mode,
-                in: NSRect(x: 5, y: 25 + bob, width: 31, height: 31),
-                phase: animationPhase,
-                interaction: hoverIntensity,
-                showGlow: true
-            )
-            drawAppleOrb(
-                state: secondaryState,
-                mode: secondaryMode,
-                in: NSRect(x: 38, y: 25 + bob, width: 31, height: 31),
-                phase: animationPhase + 0.9,
-                interaction: hoverIntensity,
-                showGlow: true
-            )
-            drawText(
-                "C",
-                in: NSRect(x: 5, y: 8, width: 31, height: 12),
-                font: .systemFont(ofSize: 8.5, weight: .semibold),
-                color: appleInk.withAlphaComponent(0.84),
-                alignment: .center
-            )
-            drawText(
-                "Cl",
-                in: NSRect(x: 38, y: 8, width: 31, height: 12),
-                font: .systemFont(ofSize: 8.5, weight: .semibold),
-                color: appleInk.withAlphaComponent(0.84),
-                alignment: .center
-            )
-            return
-        }
         drawAppleOrb(
             state: state,
             mode: mode,
@@ -144,6 +182,62 @@ final class OrbView: NSView {
             interaction: hoverIntensity,
             showGlow: true
         )
+        if let sourceBadge {
+            let palette = accentPalette(for: state, risk: displayedRisk(for: state, mode: mode))
+            let badgeRect = NSRect(x: 28, y: 3, width: 18, height: 18)
+            let badge = NSBezierPath(ovalIn: badgeRect)
+            let badgeGradient = NSGradient(
+                starting: NSColor.white.withAlphaComponent(0.78),
+                ending: palette.soft.withAlphaComponent(0.46)
+            )!
+            badgeGradient.draw(in: badge, angle: 118)
+            NSColor.white.withAlphaComponent(0.90).setStroke()
+            badge.lineWidth = 0.85
+            badge.stroke()
+            palette.secondary.withAlphaComponent(0.40).setStroke()
+            let badgeOutline = NSBezierPath(ovalIn: badgeRect.insetBy(dx: 1.4, dy: 1.4))
+            badgeOutline.lineWidth = 0.55
+            badgeOutline.stroke()
+            drawSourceMark(sourceBadge, in: badgeRect.insetBy(dx: 4.2, dy: 4.2), color: palette.secondary)
+        }
+    }
+
+    private func drawSourceMark(_ source: AgentSource, in rect: NSRect, color: NSColor) {
+        color.setStroke()
+        switch source {
+        case .codex:
+            for offset in stride(from: CGFloat(-1.9), through: 1.9, by: 1.9) {
+                let layer = NSBezierPath()
+                layer.move(to: NSPoint(x: rect.minX, y: rect.midY + offset - 1.3))
+                layer.line(to: NSPoint(x: rect.midX, y: rect.midY + offset + 1.1))
+                layer.line(to: NSPoint(x: rect.maxX, y: rect.midY + offset - 1.3))
+                layer.lineWidth = 0.9
+                layer.lineCapStyle = .round
+                layer.lineJoinStyle = .round
+                layer.stroke()
+            }
+        case .claudeCode:
+            let center = NSPoint(x: rect.midX, y: rect.midY)
+            for index in 0..<8 {
+                let angle = CGFloat(index) / 8 * .pi * 2
+                let innerRadius: CGFloat = 1.2
+                let outerRadius: CGFloat = index.isMultiple(of: 2) ? 4.2 : 3.4
+                let ray = NSBezierPath()
+                ray.move(to: NSPoint(
+                    x: center.x + cos(angle) * innerRadius,
+                    y: center.y + sin(angle) * innerRadius
+                ))
+                ray.line(to: NSPoint(
+                    x: center.x + cos(angle) * outerRadius,
+                    y: center.y + sin(angle) * outerRadius
+                ))
+                ray.lineWidth = 0.9
+                ray.lineCapStyle = .round
+                ray.stroke()
+            }
+            color.setFill()
+            NSBezierPath(ovalIn: NSRect(x: center.x - 1.1, y: center.y - 1.1, width: 2.2, height: 2.2)).fill()
+        }
     }
 
     private func snap(origin: NSPoint, size: NSSize) -> NSPoint {
@@ -192,16 +286,23 @@ final class DetailView: NSView {
     }
 
     private var glassFill: (start: NSColor, end: NSColor) {
+        let isClaude = state.agentName == "Claude Code"
         switch glassStyle {
         case .frosted:
             return (
                 NSColor(calibratedWhite: 1, alpha: 0.23 + 0.62 * glassDensity),
-                NSColor(calibratedRed: 0.78, green: 0.90, blue: 1, alpha: 0.08 + 0.52 * glassDensity)
+                isClaude
+                    ? NSColor(calibratedRed: 0.89, green: 0.82, blue: 1, alpha: 0.08 + 0.52 * glassDensity)
+                    : NSColor(calibratedRed: 0.78, green: 0.90, blue: 1, alpha: 0.08 + 0.52 * glassDensity)
             )
         case .midnight:
             return (
-                NSColor(calibratedRed: 0.04, green: 0.10, blue: 0.19, alpha: 0.16 + 0.70 * glassDensity),
-                NSColor(calibratedRed: 0.08, green: 0.24, blue: 0.38, alpha: 0.10 + 0.58 * glassDensity)
+                isClaude
+                    ? NSColor(calibratedRed: 0.10, green: 0.05, blue: 0.20, alpha: 0.16 + 0.70 * glassDensity)
+                    : NSColor(calibratedRed: 0.04, green: 0.10, blue: 0.19, alpha: 0.16 + 0.70 * glassDensity),
+                isClaude
+                    ? NSColor(calibratedRed: 0.25, green: 0.10, blue: 0.40, alpha: 0.10 + 0.58 * glassDensity)
+                    : NSColor(calibratedRed: 0.08, green: 0.24, blue: 0.38, alpha: 0.10 + 0.58 * glassDensity)
             )
         }
     }
@@ -212,8 +313,12 @@ final class DetailView: NSView {
 
     private var secondaryContentColor: NSColor {
         isDarkGlass
-            ? NSColor(calibratedRed: 0.72, green: 0.84, blue: 0.96, alpha: 1)
-            : appleSecondary
+            ? (state.agentName == "Claude Code"
+                ? NSColor(calibratedRed: 0.86, green: 0.78, blue: 1, alpha: 1)
+                : NSColor(calibratedRed: 0.72, green: 0.84, blue: 0.96, alpha: 1))
+            : (state.agentName == "Claude Code"
+                ? NSColor(calibratedRed: 0.48, green: 0.40, blue: 0.63, alpha: 1)
+                : appleSecondary)
     }
 
     private var contentDividerColor: NSColor {
@@ -335,6 +440,7 @@ final class DetailView: NSView {
         cardProgress: CGFloat
     ) {
         guard let context = NSGraphicsContext.current?.cgContext else { return }
+        let palette = accentPalette(for: state, risk: displayedRisk(for: state, mode: mode))
         context.saveGState()
 
         if neckProgress > 0.001 && cardProgress < 0.04 {
@@ -347,7 +453,9 @@ final class DetailView: NSView {
             )
             let capsuleGradient = NSGradient(
                 starting: NSColor.white.withAlphaComponent(0.19),
-                ending: NSColor(calibratedRed: 0.63, green: 0.86, blue: 1, alpha: 0.045)
+                ending: state.agentName == "Claude Code"
+                    ? palette.soft.withAlphaComponent(0.08)
+                    : NSColor(calibratedRed: 0.63, green: 0.86, blue: 1, alpha: 0.045)
             )!
             capsuleGradient.draw(in: capsule, angle: opensToRight ? 0 : 180)
             NSColor.white.withAlphaComponent(0.72).setStroke()
@@ -392,13 +500,19 @@ final class DetailView: NSView {
         card.stroke()
         context.saveGState()
         context.translateBy(x: -0.55, y: 0)
-        NSColor(calibratedRed: 0.22, green: 0.76, blue: 1, alpha: isDarkGlass ? 0.28 : 0.20).setStroke()
+        (state.agentName == "Claude Code"
+            ? palette.primary.withAlphaComponent(isDarkGlass ? 0.30 : 0.22)
+            : NSColor(calibratedRed: 0.22, green: 0.76, blue: 1, alpha: isDarkGlass ? 0.28 : 0.20)
+        ).setStroke()
         card.lineWidth = 0.65
         card.stroke()
         context.restoreGState()
         context.saveGState()
         context.translateBy(x: 0.55, y: 0)
-        NSColor(calibratedRed: 1, green: 0.38, blue: 0.52, alpha: isDarkGlass ? 0.15 : 0.11).setStroke()
+        (state.agentName == "Claude Code"
+            ? palette.secondary.withAlphaComponent(isDarkGlass ? 0.18 : 0.13)
+            : NSColor(calibratedRed: 1, green: 0.38, blue: 0.52, alpha: isDarkGlass ? 0.15 : 0.11)
+        ).setStroke()
         card.lineWidth = 0.55
         card.stroke()
         context.restoreGState()
@@ -426,7 +540,10 @@ final class DetailView: NSView {
             alignment: .left
         )
         drawStatusDot(at: NSPoint(x: card.maxX - 22, y: card.maxY - 22))
-        drawAgentPill(in: NSRect(x: leading, y: card.maxY - 61, width: 78, height: 22))
+        let agentFont = NSFont.systemFont(ofSize: 10.5, weight: .medium)
+        let agentNameWidth = ceil((state.agentName as NSString).size(withAttributes: [.font: agentFont]).width)
+        let agentPillWidth = max(78, min(132, agentNameWidth + 38))
+        drawAgentPill(in: NSRect(x: leading, y: card.maxY - 61, width: agentPillWidth, height: 22))
 
         if let balance = state.balanceText {
             drawText(
@@ -522,6 +639,7 @@ final class DetailView: NSView {
     }
 
     private func drawAgentPill(in rect: NSRect) {
+        let palette = accentPalette(for: state, risk: displayedRisk(for: state, mode: mode))
         (isDarkGlass
             ? NSColor(calibratedRed: 0.22, green: 0.37, blue: 0.55, alpha: 0.60)
             : NSColor.white.withAlphaComponent(0.50)
@@ -532,17 +650,42 @@ final class DetailView: NSView {
         pill.lineWidth = 0.75
         pill.stroke()
 
-        let blue = NSColor(calibratedRed: 0.20, green: 0.57, blue: 0.98, alpha: 1)
-        blue.setStroke()
-        for offset in stride(from: CGFloat(0), through: 5, by: 2.5) {
-            let layer = NSBezierPath()
-            layer.move(to: NSPoint(x: rect.minX + 9, y: rect.midY + 3 - offset))
-            layer.line(to: NSPoint(x: rect.minX + 14, y: rect.midY + 6 - offset))
-            layer.line(to: NSPoint(x: rect.minX + 19, y: rect.midY + 3 - offset))
-            layer.lineWidth = 1.2
-            layer.lineCapStyle = .round
-            layer.lineJoinStyle = .round
-            layer.stroke()
+        (state.agentName == "Claude Code"
+            ? palette.primary
+            : NSColor(calibratedRed: 0.20, green: 0.57, blue: 0.98, alpha: 1)
+        ).setStroke()
+        if state.agentName == "Claude Code" {
+            let center = NSPoint(x: rect.minX + 14, y: rect.midY)
+            for index in 0..<8 {
+                let angle = CGFloat(index) / 8 * .pi * 2
+                let innerRadius: CGFloat = 2
+                let outerRadius: CGFloat = index.isMultiple(of: 2) ? 6 : 4.8
+                let ray = NSBezierPath()
+                ray.move(to: NSPoint(
+                    x: center.x + cos(angle) * innerRadius,
+                    y: center.y + sin(angle) * innerRadius
+                ))
+                ray.line(to: NSPoint(
+                    x: center.x + cos(angle) * outerRadius,
+                    y: center.y + sin(angle) * outerRadius
+                ))
+                ray.lineWidth = 1.25
+                ray.lineCapStyle = .round
+                ray.stroke()
+            }
+            palette.primary.setFill()
+            NSBezierPath(ovalIn: NSRect(x: center.x - 1.5, y: center.y - 1.5, width: 3, height: 3)).fill()
+        } else {
+            for offset in stride(from: CGFloat(0), through: 5, by: 2.5) {
+                let layer = NSBezierPath()
+                layer.move(to: NSPoint(x: rect.minX + 9, y: rect.midY + 3 - offset))
+                layer.line(to: NSPoint(x: rect.minX + 14, y: rect.midY + 6 - offset))
+                layer.line(to: NSPoint(x: rect.minX + 19, y: rect.midY + 3 - offset))
+                layer.lineWidth = 1.2
+                layer.lineCapStyle = .round
+                layer.lineJoinStyle = .round
+                layer.stroke()
+            }
         }
         drawText(
             state.agentName,
@@ -557,9 +700,11 @@ final class DetailView: NSView {
 
     private func drawStatusDot(at point: NSPoint) {
         let effectiveRisk = statusRisk ?? state.risk
-        let color = effectiveRisk == .safe
-            ? NSColor(calibratedRed: 1.0, green: 0.60, blue: 0.32, alpha: 1)
-            : effectiveRisk.color
+        let color = state.agentName == "Claude Code"
+            ? accentPalette(for: state, risk: effectiveRisk).primary
+            : (effectiveRisk == .safe
+                ? NSColor(calibratedRed: 1.0, green: 0.60, blue: 0.32, alpha: 1)
+                : effectiveRisk.color)
         color.setFill()
         NSBezierPath(ovalIn: NSRect(x: point.x - 3.5, y: point.y - 3.5, width: 7, height: 7)).fill()
         NSColor.white.withAlphaComponent(isDarkGlass ? 0.72 : 0.76).setStroke()
@@ -576,6 +721,8 @@ final class DetailView: NSView {
         width: CGFloat
     ) {
         let percent = max(0, min(100, value ?? 0))
+        let rowRisk = value.map(risk(for:)) ?? .loading
+        let palette = accentPalette(for: state, risk: rowRisk)
         drawText(
             label,
             in: NSRect(x: leading, y: y, width: 36, height: 17),
@@ -591,10 +738,15 @@ final class DetailView: NSView {
         NSBezierPath(roundedRect: track, xRadius: 2.5, yRadius: 2.5).fill()
         let fill = NSRect(x: track.minX, y: track.minY, width: track.width * CGFloat(percent / 100), height: track.height)
         let fillPath = NSBezierPath(roundedRect: fill, xRadius: 2.5, yRadius: 2.5)
-        let fillGradient = NSGradient(
-            starting: NSColor(calibratedRed: 0.24, green: 0.77, blue: 0.98, alpha: 0.92),
-            ending: NSColor(calibratedRed: 0.18, green: 0.49, blue: 0.94, alpha: 0.92)
-        )!
+        let fillGradient = state.agentName == "Claude Code"
+            ? NSGradient(
+                starting: palette.primary.withAlphaComponent(0.94),
+                ending: palette.secondary.withAlphaComponent(0.94)
+            )!
+            : NSGradient(
+                starting: NSColor(calibratedRed: 0.24, green: 0.77, blue: 0.98, alpha: 0.92),
+                ending: NSColor(calibratedRed: 0.18, green: 0.49, blue: 0.94, alpha: 0.92)
+            )!
         fillGradient.draw(in: fillPath, angle: 0)
         NSColor.white.withAlphaComponent(0.46).setStroke()
         fillPath.lineWidth = 0.45
@@ -1050,6 +1202,9 @@ private func drawAppleOrb(
     showGlow: Bool
 ) {
     guard let context = NSGraphicsContext.current?.cgContext else { return }
+    let quotaRisk = displayedRisk(for: state, mode: mode)
+    let palette = accentPalette(for: state, risk: quotaRisk)
+    let isClaude = state.agentName == "Claude Code"
     context.saveGState()
 
     if showGlow {
@@ -1062,9 +1217,15 @@ private func drawAppleOrb(
         context.setShadow(
             offset: CGSize(width: 0, height: -3),
             blur: 7 + interaction * 5,
-            color: NSColor(calibratedRed: 0.12, green: 0.72, blue: 1, alpha: 0.14 + interaction * 0.12).cgColor
+            color: (isClaude
+                ? palette.primary.withAlphaComponent(0.14 + interaction * 0.12)
+                : NSColor(calibratedRed: 0.12, green: 0.72, blue: 1, alpha: 0.14 + interaction * 0.12)
+            ).cgColor
         )
-        NSColor(calibratedRed: 0.35, green: 0.78, blue: 1, alpha: 0.025).setFill()
+        (isClaude
+            ? palette.soft.withAlphaComponent(0.04)
+            : NSColor(calibratedRed: 0.35, green: 0.78, blue: 1, alpha: 0.025)
+        ).setFill()
         floorGlow.fill()
         context.setShadow(offset: .zero, blur: 0, color: nil)
     }
@@ -1072,14 +1233,19 @@ private func drawAppleOrb(
     let lens = NSBezierPath(ovalIn: rect)
     let lensGradient = NSGradient(
         starting: NSColor(calibratedWhite: 1, alpha: 0.52),
-        ending: NSColor(calibratedRed: 0.55, green: 0.82, blue: 1, alpha: 0.18)
+        ending: isClaude
+            ? palette.soft.withAlphaComponent(0.22)
+            : NSColor(calibratedRed: 0.55, green: 0.82, blue: 1, alpha: 0.18)
     )!
     lensGradient.draw(in: lens, relativeCenterPosition: NSPoint(x: -0.24, y: 0.28))
 
     context.saveGState()
     lens.addClip()
     let chamber = rect.insetBy(dx: 6.2, dy: 6.2)
-    NSColor(calibratedRed: 0.95, green: 0.985, blue: 1, alpha: 0.18).setFill()
+    (isClaude
+        ? palette.soft.withAlphaComponent(0.13)
+        : NSColor(calibratedRed: 0.95, green: 0.985, blue: 1, alpha: 0.18)
+    ).setFill()
     NSBezierPath(ovalIn: chamber).fill()
 
     let selected = state.selectedPercent(mode: mode)
@@ -1093,12 +1259,16 @@ private func drawAppleOrb(
     }
     let liquidTop = chamber.minY + chamber.height * fraction
     let liquidRect = NSRect(x: chamber.minX - 8, y: chamber.minY - 4, width: chamber.width + 16, height: liquidTop - chamber.minY + 5)
-    let liquidColor = state.risk == .safe || state.risk == .loading
-        ? NSColor(calibratedRed: 0.27, green: 0.72, blue: 0.98, alpha: 1)
-        : state.risk.color
+    let liquidColor = isClaude
+        ? palette.primary
+        : ((state.risk == .safe || state.risk == .loading)
+            ? NSColor(calibratedRed: 0.27, green: 0.72, blue: 0.98, alpha: 1)
+            : state.risk.color)
     let liquidGradient = NSGradient(
-        starting: liquidColor.withAlphaComponent(0.56),
-        ending: NSColor(calibratedRed: 0.67, green: 0.92, blue: 1, alpha: 0.26)
+        starting: liquidColor.withAlphaComponent(isClaude ? 0.58 : 0.56),
+        ending: isClaude
+            ? palette.soft.withAlphaComponent(0.30)
+            : NSColor(calibratedRed: 0.67, green: 0.92, blue: 1, alpha: 0.26)
     )!
     liquidGradient.draw(in: liquidRect, angle: 90)
 
@@ -1112,7 +1282,10 @@ private func drawAppleOrb(
         let y = liquidTop + oscillation * (1.05 + interaction * 2.2) + tilt
         wave.line(to: NSPoint(x: x, y: y))
     }
-    NSColor(calibratedRed: 0.12, green: 0.63, blue: 0.96, alpha: 0.72).setStroke()
+    (isClaude
+        ? palette.secondary.withAlphaComponent(0.78)
+        : NSColor(calibratedRed: 0.12, green: 0.63, blue: 0.96, alpha: 0.72)
+    ).setStroke()
     wave.lineWidth = 1.0
     wave.stroke()
     let highlightWave = wave.copy() as! NSBezierPath
@@ -1125,7 +1298,10 @@ private func drawAppleOrb(
     for bubble in bubbleRects(in: chamber, fraction: fraction, phase: phase) {
         NSColor.white.withAlphaComponent(0.52).setFill()
         NSBezierPath(ovalIn: bubble).fill()
-        NSColor(calibratedRed: 0.15, green: 0.61, blue: 0.92, alpha: 0.36).setStroke()
+        (isClaude
+            ? palette.secondary.withAlphaComponent(0.40)
+            : NSColor(calibratedRed: 0.15, green: 0.61, blue: 0.92, alpha: 0.36)
+        ).setStroke()
         let outline = NSBezierPath(ovalIn: bubble)
         outline.lineWidth = 0.6
         outline.stroke()
@@ -1153,7 +1329,10 @@ private func drawAppleOrb(
     NSColor.white.withAlphaComponent(0.92).setStroke()
     lens.lineWidth = 1.25
     lens.stroke()
-    NSColor(calibratedRed: 0.36, green: 0.64, blue: 0.86, alpha: 0.40).setStroke()
+    (isClaude
+        ? palette.secondary.withAlphaComponent(0.42)
+        : NSColor(calibratedRed: 0.36, green: 0.64, blue: 0.86, alpha: 0.40)
+    ).setStroke()
     let middleRing = NSBezierPath(ovalIn: rect.insetBy(dx: 2.8, dy: 2.8))
     middleRing.lineWidth = 0.65
     middleRing.stroke()
@@ -1162,7 +1341,12 @@ private func drawAppleOrb(
     innerRing.lineWidth = 0.6
     innerRing.stroke()
 
-    drawPrecisionTicks(center: NSPoint(x: rect.midX, y: rect.midY), radius: rect.width / 2 - 8.2)
+    drawPrecisionTicks(
+        center: NSPoint(x: rect.midX, y: rect.midY),
+        radius: rect.width / 2 - 8.2,
+        palette: palette,
+        isClaude: isClaude
+    )
 
     let specularArc = NSBezierPath()
     specularArc.appendArc(
@@ -1181,10 +1365,17 @@ private func drawAppleOrb(
     let suffix = state.balanceText == nil && selected != nil ? "%" : ""
     let fullText = text + suffix
     let orbScale = min(1, rect.width / 62)
-    let fontSize: CGFloat = (state.balanceText == nil ? 15 : (fullText.count > 10 ? 6.2 : 8.5)) * max(0.55, orbScale)
+    let minimumScale: CGFloat = rect.width < 40 ? 0.52 : 0.55
+    let fontSize: CGFloat = (state.balanceText == nil ? 15 : (fullText.count > 10 ? 6.2 : 8.5)) * max(minimumScale, orbScale)
+    let horizontalInset = max(3, min(8, rect.width * 0.10))
     drawText(
         fullText,
-        in: NSRect(x: rect.minX + 8, y: rect.midY - 9, width: rect.width - 16, height: 20),
+        in: NSRect(
+            x: rect.minX + horizontalInset,
+            y: rect.midY - 9,
+            width: rect.width - horizontalInset * 2,
+            height: 20
+        ),
         font: .systemFont(ofSize: fontSize, weight: .regular),
         color: appleInk,
         alignment: .center
@@ -1192,7 +1383,12 @@ private func drawAppleOrb(
     context.restoreGState()
 }
 
-private func drawPrecisionTicks(center: NSPoint, radius: CGFloat) {
+private func drawPrecisionTicks(
+    center: NSPoint,
+    radius: CGFloat,
+    palette: AgentAccentPalette,
+    isClaude: Bool
+) {
     for index in 0..<52 {
         let angle = CGFloat(index) / 52 * .pi * 2
         let major = index % 13 == 0
@@ -1200,9 +1396,16 @@ private func drawPrecisionTicks(center: NSPoint, radius: CGFloat) {
         let innerRadius = radius - (major ? 2.8 : 1.5)
         let inner = NSPoint(x: center.x + cos(angle) * innerRadius, y: center.y + sin(angle) * innerRadius)
         let outer = NSPoint(x: center.x + cos(angle) * radius, y: center.y + sin(angle) * radius)
-        let color = emphasized
-            ? NSColor(calibratedRed: 0.08, green: 0.63, blue: 1, alpha: 0.82)
-            : NSColor(calibratedRed: 0.28, green: 0.54, blue: 0.76, alpha: 0.38)
+        let color: NSColor
+        if isClaude {
+            color = emphasized
+                ? palette.primary.withAlphaComponent(0.84)
+                : palette.secondary.withAlphaComponent(0.40)
+        } else {
+            color = emphasized
+                ? NSColor(calibratedRed: 0.08, green: 0.63, blue: 1, alpha: 0.82)
+                : NSColor(calibratedRed: 0.28, green: 0.54, blue: 0.76, alpha: 0.38)
+        }
         color.setStroke()
         let path = NSBezierPath()
         path.move(to: inner)

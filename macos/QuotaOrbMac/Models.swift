@@ -155,6 +155,8 @@ struct OrbState {
 struct AppSettings: Codable {
     var orbX: Double?
     var orbY: Double?
+    var secondaryOrbX: Double?
+    var secondaryOrbY: Double?
     var selectedAgent: AgentSource = .codex
     // Optional to preserve the user's source choice from earlier versions.
     var agentDisplayMode: AgentDisplayMode?
