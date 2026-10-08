@@ -131,11 +131,21 @@ enum CodexRPCProvider {
 
     private static func resolveExecutable() throws -> String {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
-        let fixed = [
-            "/Applications/Codex.app/Contents/Resources/codex",
-            "/Applications/ChatGPT.app/Contents/Resources/codex",
-            "\(home)/Applications/Codex.app/Contents/Resources/codex",
-            "\(home)/Applications/ChatGPT.app/Contents/Resources/codex",
+        let applicationBundles = [
+            "/Applications/Codex.app",
+            "/Applications/ChatGPT.app",
+            "\(home)/Applications/Codex.app",
+            "\(home)/Applications/ChatGPT.app"
+        ]
+        // Finder and login items do not inherit the terminal's PATH. Support both
+        // the original runtime layout and the nested CLI shipped by newer apps.
+        let bundledRuntimes = applicationBundles.flatMap { bundle in
+            [
+                "\(bundle)/Contents/Resources/codex",
+                "\(bundle)/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex"
+            ]
+        }
+        let fixed = bundledRuntimes + [
             "/opt/homebrew/bin/codex",
             "/usr/local/bin/codex"
         ]
