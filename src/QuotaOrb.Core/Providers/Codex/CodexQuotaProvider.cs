@@ -166,12 +166,7 @@ public sealed class CodexQuotaProvider : IQuotaProvider
             return second;
         }
 
-        if (first?.Duration is not null || second?.Duration is not null)
-        {
-            return null;
-        }
-
-        return duration == TimeSpan.FromHours(5) ? first : second;
+        return null;
     }
 
     private TokenUsageSummary? MapTokenUsage(RpcAccountUsageResponse response)

@@ -86,6 +86,19 @@ public sealed class CodexQuotaProviderTests
     }
 
     [Fact]
+    public async Task ReadAsync_WithoutExplicitDurations_DoesNotGuessWindows()
+    {
+        var transport = CreateTransport(
+            """{"primary":{"usedPercent":14},"secondary":{"usedPercent":38}}""");
+        var provider = new CodexQuotaProvider(() => transport, new FixedTimeProvider(Now));
+
+        var error = await Assert.ThrowsAsync<QuotaProviderException>(() =>
+            provider.ReadAsync(CancellationToken.None));
+
+        Assert.Equal("no-limits", error.Code);
+    }
+
+    [Fact]
     public async Task ReadAsync_MapsOfficialAccountTokenBuckets()
     {
         var transport = new ScriptedTransport(new[]

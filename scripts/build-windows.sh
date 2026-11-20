@@ -4,7 +4,7 @@ set -euo pipefail
 script_dir="${0:A:h}"
 project_root="${script_dir:h}"
 dotnet_bin="${DOTNET_BIN:-dotnet}"
-artifact_root="$project_root/artifacts/windows"
+artifact_root="${BALANCE_CAPSULE_WINDOWS_ARTIFACT_DIR:-$project_root/artifacts/windows}"
 single_publish_dir="$artifact_root/publish-win-x64-single"
 portable_publish_dir="$artifact_root/publish-win-x64-portable"
 package_dir="$artifact_root/BalanceCapsule-win.15-x64"

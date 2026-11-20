@@ -1,695 +1,391 @@
-using System.Diagnostics;
 using System.IO;
-using System.Windows.Media;
+using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Threading;
 using QuotaOrb.Core.Domain;
-using QuotaOrb.Core.Providers.Balance;
+using QuotaOrb.Core.Providers;
 using QuotaOrb.Core.Providers.Claude;
 using QuotaOrb.Core.Providers.Codex;
-using QuotaOrb.Core.Providers.Detection;
-using QuotaOrb.Core.Refresh;
 using QuotaOrb.Core.Settings;
 using QuotaOrb.Windows.Integration;
-using QuotaOrb.Windows.ViewModels;
 using QuotaOrb.Windows.Windows;
+using Drawing = System.Drawing;
+using Forms = System.Windows.Forms;
+using MenuItem = System.Windows.Controls.MenuItem;
+using MessageBox = System.Windows.MessageBox;
 
 namespace QuotaOrb.Windows;
 
 public partial class App : System.Windows.Application
 {
     private readonly SingleInstanceService _singleInstance = new();
-    private JsonSettingsStore? _settingsStore;
+    private readonly JsonSettingsStore _settingsStore = new();
+    private readonly SemaphoreSlim _saveLock = new(1);
+    private readonly CancellationTokenSource _shutdown = new();
+    private readonly Dictionary<AgentSource, CapsuleWindow> _windows = new();
+    private readonly Dictionary<AgentSource, IQuotaProvider> _providers = new()
+    {
+        [AgentSource.Codex] = CodexQuotaProvider.CreateDefault(),
+        [AgentSource.ClaudeCode] = new ClaudeStatusQuotaProvider()
+    };
+    private readonly DispatcherTimer _refreshTimer = new() { Interval = TimeSpan.FromMinutes(1) };
+    private readonly DispatcherTimer _rotationTimer = new() { Interval = TimeSpan.FromSeconds(3) };
     private AppSettings _settings = new();
-    private StartupRegistrationService? _startupRegistration;
-    private QuotaStateService? _quotaState;
-    private SafeBalanceHttpClient? _balanceHttpClient;
-    private OrbViewModel? _viewModel;
-    private FloatingOrbWindow? _orbWindow;
-    private DetailFlyoutWindow? _detailWindow;
-    private SettingsWindow? _settingsWindow;
-    private FullscreenMonitor? _fullscreenMonitor;
-    private TrayIconService? _trayIcon;
-    private bool _isFullscreen;
-    private bool _orbVisible = true;
-    private int _cleanupStarted;
+    private StartupRegistrationService? _startup;
+    private Forms.NotifyIcon? _tray;
+    private Forms.ContextMenuStrip? _trayMenu;
+    private Drawing.Icon? _icon;
+    private FullscreenMonitor? _fullscreen;
+    private bool _orbsVisible = true;
+    private bool _refreshing;
+    private bool _refreshQueued;
 
-    protected override async void OnStartup(System.Windows.StartupEventArgs e)
+    protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
-
         if (!OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000))
         {
-            System.Windows.MessageBox.Show(
-                "BalanceCapsule-win.15 仅支持 Windows 11 x64。",
-                "Balance Capsule",
-                System.Windows.MessageBoxButton.OK,
-                System.Windows.MessageBoxImage.Information);
+            MessageBox.Show("Balance Capsule 仅支持 Windows 11 x64。", "Balance Capsule");
             Shutdown(-1);
             return;
         }
 
         if (!_singleInstance.TryAcquire())
         {
-            Shutdown(0);
+            Shutdown();
             return;
         }
 
         try
         {
-            await InitializeApplicationAsync().ConfigureAwait(true);
-        }
-        catch (Exception exception)
-        {
-            var logPath = WriteStartupError(exception);
-            if (_viewModel is not null && _orbWindow is not null)
+            _settings = await _settingsStore.LoadAsync(_shutdown.Token);
+            if (_settings.SelectedAgent != AgentSource.Codex)
+                _settings = _settings with { SelectedAgent = AgentSource.ClaudeCode };
+
+            var work = SystemParameters.WorkArea;
+            var x = _settings.Left ?? Math.Max(work.Left + 12, work.Right - 530);
+            var y = _settings.Top ?? Math.Max(work.Top + 12, work.Top + work.Height * .375 - CapsuleGlass.CompactHeight);
+            var claudeX = _settings.ClaudeLeft ?? (x + 168 <= work.Right ? x + 88 : x - 88);
+            var claudeY = _settings.ClaudeTop ?? y;
+            CreateCapsule(AgentSource.Codex, new LogicalPoint(x, y));
+            CreateCapsule(AgentSource.ClaudeCode, new LogicalPoint(claudeX, claudeY));
+
+            _startup = new StartupRegistrationService(Environment.ProcessPath
+                ?? throw new InvalidOperationException("无法定位当前可执行文件。"));
+            // A legacy registration can still point at the previous executable after an upgrade.
+            if (_settings.StartWithWindows)
             {
-                ShowUiError("startup", "Balance Capsule 启动失败，请检查本机环境后重试。");
-                if (!_orbWindow.IsVisible)
+                try { _startup.SetEnabled(true); }
+                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or System.Security.SecurityException or InvalidOperationException)
                 {
-                    _orbWindow.Show();
+                    Log(exception);
                 }
             }
-            else
+
+            CreateTray();
+            if (_settings.HideInFullscreen)
             {
-                System.Windows.MessageBox.Show(
-                    $"Balance Capsule 启动失败。\n\n诊断日志：{logPath}",
-                    "Balance Capsule",
-                    System.Windows.MessageBoxButton.OK,
-                    System.Windows.MessageBoxImage.Error);
-                await CleanupAsync().ConfigureAwait(true);
-                Shutdown(-1);
+                _fullscreen = new FullscreenMonitor(Dispatcher);
+                _fullscreen.FullscreenChanged += (_, _) => ApplyPresentation();
+                _fullscreen.Start();
             }
+            ApplyPresentation();
+            _refreshTimer.Tick += (_, _) => _ = RefreshAsync();
+            _rotationTimer.Tick += (_, _) => RotateQuota();
+            _refreshTimer.Start();
+            _rotationTimer.Start();
+            await RefreshAsync();
         }
-    }
-
-    private static string WriteStartupError(Exception exception)
-    {
-        var root = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "BalanceCapsule");
-        var logPath = Path.Combine(root, "startup.log");
-        try
+        catch (OperationCanceledException) when (_shutdown.IsCancellationRequested)
         {
-            Directory.CreateDirectory(root);
-            File.AppendAllText(
-                logPath,
-                $"[{DateTimeOffset.Now:O}] {exception}\n\n");
-            return logPath;
-        }
-        catch (Exception)
-        {
-            return "无法写入启动日志";
-        }
-    }
-
-    protected override void OnExit(System.Windows.ExitEventArgs e)
-    {
-        if (Volatile.Read(ref _cleanupStarted) == 0)
-        {
-            CleanupAsync().GetAwaiter().GetResult();
-        }
-
-        base.OnExit(e);
-    }
-
-    private async Task InitializeApplicationAsync()
-    {
-        _settingsStore = new JsonSettingsStore();
-        _settings = await _settingsStore.LoadAsync().ConfigureAwait(true);
-
-        _viewModel = new OrbViewModel(dispatcher: Dispatcher);
-        _viewModel.ApplySettings(_settings);
-        _viewModel.SetSelectedAgent(_settings.SelectedAgent);
-        _balanceHttpClient = new SafeBalanceHttpClient();
-        _quotaState = CreateQuotaStateService(_settings.SelectedAgent);
-        _quotaState.StateChanged += OnQuotaStateChanged;
-
-        _detailWindow = new DetailFlyoutWindow(_viewModel);
-        _orbWindow = new FloatingOrbWindow(_viewModel);
-        _orbWindow.AttachDetailWindow(_detailWindow);
-        _orbWindow.SetStartupEnabled(_settings.StartWithWindows);
-        _orbWindow.SetSelectedAgent(_settings.SelectedAgent);
-        _orbWindow.SetSelectedQuotaWindow(_settings.QuotaWindow);
-        _orbWindow.SetQuotaWindowAvailability(
-            _viewModel.ShowsPercent,
-            _viewModel.HasFiveHourQuota,
-            _viewModel.HasWeeklyQuota);
-        _orbWindow.PositionCommitted += OnPositionCommitted;
-        _orbWindow.RefreshRequested += OnRefreshRequested;
-        _orbWindow.StartupToggleRequested += OnStartupToggleRequested;
-        _orbWindow.AgentSourceRequested += OnAgentSourceRequested;
-        _orbWindow.QuotaWindowRequested += OnQuotaWindowRequested;
-        _orbWindow.SettingsRequested += OnSettingsRequested;
-        _orbWindow.ExitRequested += OnExitRequested;
-
-        ApplyInitialPosition(_orbWindow, _settings);
-        MainWindow = _orbWindow;
-        _viewModel.Apply(_quotaState.Current);
-        _orbWindow.Show();
-        ClampInitialPosition();
-
-        var executablePath = Environment.ProcessPath
-            ?? throw new InvalidOperationException("The application executable path is unavailable.");
-        _startupRegistration = new StartupRegistrationService(executablePath);
-
-        Exception? startupError = null;
-        try
-        {
-            _startupRegistration.SetEnabled(_settings.StartWithWindows);
         }
         catch (Exception exception)
         {
-            startupError = exception;
-        }
-
-        _trayIcon = new TrayIconService(
-            _settings.StartWithWindows,
-            _settings.SelectedAgent,
-            _settings.QuotaWindow);
-        _trayIcon.RefreshRequested += OnRefreshRequested;
-        _trayIcon.OrbVisibilityToggleRequested += OnOrbVisibilityToggleRequested;
-        _trayIcon.StartupToggleRequested += OnStartupToggleRequested;
-        _trayIcon.AgentSourceRequested += OnAgentSourceRequested;
-        _trayIcon.QuotaWindowRequested += OnQuotaWindowRequested;
-        _trayIcon.SettingsRequested += OnSettingsRequested;
-        _trayIcon.ExitRequested += OnExitRequested;
-        _trayIcon.SetQuotaWindowAvailability(
-            _viewModel.ShowsPercent,
-            _viewModel.HasFiveHourQuota,
-            _viewModel.HasWeeklyQuota);
-        _trayIcon.SetOrbVisible(_orbVisible);
-
-        _fullscreenMonitor = new FullscreenMonitor(Dispatcher);
-        _fullscreenMonitor.FullscreenChanged += OnFullscreenChanged;
-        _fullscreenMonitor.Start();
-
-        await _quotaState.StartAsync().ConfigureAwait(true);
-
-        if (startupError is not null)
-        {
-            ShowUiError("startup", "开机启动设置未能写入当前用户配置。");
+            Log(exception);
+            MessageBox.Show("启动失败。请查看 %LOCALAPPDATA%\\BalanceCapsule\\startup.log。", "Balance Capsule");
+            Shutdown(-1);
         }
     }
 
-    private static void ApplyInitialPosition(FloatingOrbWindow window, AppSettings settings)
+    private void CreateCapsule(AgentSource source, LogicalPoint origin)
     {
-        if (settings.Left is not null && settings.Top is not null)
+        var window = new CapsuleWindow(source == AgentSource.ClaudeCode, origin, BuildOrbMenu);
+        var otherSource = source == AgentSource.Codex ? AgentSource.ClaudeCode : AgentSource.Codex;
+        window.FindVisibleNeighbor = () => _windows.TryGetValue(otherSource, out var other) && other.IsVisible
+            ? other.OrbPosition : null;
+        window.RefreshRequested += () => _ = RefreshAsync();
+        window.PositionCommitted += point =>
         {
-            window.Left = settings.Left.Value;
-            window.Top = settings.Top.Value;
-            return;
-        }
-
-        var work = System.Windows.SystemParameters.WorkArea;
-        window.Left = work.Right - 84 - 12;
-        window.Top = work.Top + Math.Max(12, (work.Height - 84) / 3d);
-    }
-
-    private void ClampInitialPosition()
-    {
-        if (_orbWindow is null)
-        {
-            return;
-        }
-
-        var clamped = WindowPlacementService.ClampAndSnapForWindow(
-            _orbWindow,
-            new LogicalPoint(_orbWindow.Left, _orbWindow.Top),
-            new LogicalSize(84, 84),
-            snapDistance: 12);
-        _orbWindow.Left = clamped.X;
-        _orbWindow.Top = clamped.Y;
-    }
-
-    private void OnQuotaStateChanged(object? sender, QuotaViewState state)
-    {
-        if (Dispatcher.HasShutdownStarted || Volatile.Read(ref _cleanupStarted) != 0)
-        {
-            return;
-        }
-
-        _ = Dispatcher.InvokeAsync(() =>
-        {
-            _viewModel?.Apply(state);
-            if (_viewModel is not null)
-            {
-                _orbWindow?.SetSelectedQuotaWindow(_viewModel.EffectiveQuotaWindow);
-                _orbWindow?.SetQuotaWindowAvailability(
-                    _viewModel.ShowsPercent,
-                    _viewModel.HasFiveHourQuota,
-                    _viewModel.HasWeeklyQuota);
-                _trayIcon?.SetSelectedQuotaWindow(_viewModel.EffectiveQuotaWindow);
-                _trayIcon?.SetQuotaWindowAvailability(
-                    _viewModel.ShowsPercent,
-                    _viewModel.HasFiveHourQuota,
-                    _viewModel.HasWeeklyQuota);
-            }
-            _trayIcon?.SetTooltip(FormatTooltip(state, _viewModel));
-        }, DispatcherPriority.DataBind);
-    }
-
-    private static string FormatTooltip(QuotaViewState state, OrbViewModel? viewModel)
-    {
-        var source = string.IsNullOrWhiteSpace(state.SourceName)
-            ? "Balance Capsule"
-            : state.SourceName;
-
-        if (!string.IsNullOrWhiteSpace(state.UnsupportedReason))
-        {
-            return $"{source}：余额查询暂不支持";
-        }
-
-        if (state.Balance is { } balance)
-        {
-            var value = balance.Amounts.FirstOrDefault();
-            var balanceText = value is null
-                ? balance.Kind == BalanceKind.ApiKeyLimitRemaining
-                    ? "密钥未设置额度上限"
-                    : "余额暂不可用"
-                : $"{value.Amount:0.00} {value.Currency.ToUpperInvariant()}";
-            return state.IsStale
-                ? $"{source}：{balanceText}（数据已过期）"
-                : $"{source}：{balanceText}";
-        }
-
-        var quotaText = viewModel?.ShowsPercent == true
-            ? $"{viewModel.CaptionText} {viewModel.DisplayText}%"
-            : $"剩余 {state.DisplayPercent}%";
-        return state.IsStale
-            ? $"{source} {quotaText}（数据已过期）"
-            : state.Risk switch
-            {
-                QuotaRisk.Error => $"{source}：配额读取失败",
-                QuotaRisk.Loading => $"{source}：配额加载中",
-                _ => $"{source} {quotaText}"
-            };
-    }
-
-    private QuotaStateService CreateQuotaStateService(AgentSource source)
-    {
-        var httpClient = _balanceHttpClient
-            ?? throw new InvalidOperationException("Balance HTTP client is unavailable.");
-        var ccSwitch = new CcSwitchSqliteDataSource();
-        var balanceProviders = new Dictionary<string, IBalanceProvider>(
-            StringComparer.OrdinalIgnoreCase)
-        {
-            ["deepseek"] = new DeepSeekBalanceProvider(httpClient),
-            ["openrouter"] = new OpenRouterBalanceProvider(httpClient)
+            _settings = source == AgentSource.Codex
+                ? _settings with { Left = point.X, Top = point.Y }
+                : _settings with { ClaudeLeft = point.X, ClaudeTop = point.Y };
+            _ = SaveSettingsAsync();
         };
-
-        if (source is AgentSource.Claude or AgentSource.ClaudeCode)
-        {
-            var isDesktop = source == AgentSource.Claude;
-            Func<IReadOnlyCollection<int>> readAgentProcessIds =
-                () => ReadAgentProcessIds("claude");
-            if (!isDesktop)
-            {
-                TryEnsureClaudeStatusLine();
-            }
-
-            return new QuotaStateService(
-                new ClaudeStatusQuotaProvider(),
-                new StableActiveProviderDetector(
-                    new ClaudeActiveProviderDetector(
-                        ccSwitch: ccSwitch,
-                        ccSwitchAppType: isDesktop ? "claude-desktop" : "claude",
-                        hasRunningAgent: () => readAgentProcessIds().Count > 0),
-                    readAgentProcessIds),
-                balanceProviders,
-                officialSourceName: isDesktop ? "Claude Desktop" : "Claude Code 官方");
-        }
-
-        return new QuotaStateService(
-            CodexQuotaProvider.CreateDefault(),
-            new StableActiveProviderDetector(
-                new ActiveProviderDetector(ccSwitch: ccSwitch),
-                () => ReadAgentProcessIds("codex")),
-            balanceProviders);
+        _windows.Add(source, window);
     }
 
-    private static IReadOnlyCollection<int> ReadAgentProcessIds(string processName)
+    private IEnumerable<AgentSource> ActiveSources() => _settings.ShowBothSources
+        ? [AgentSource.Codex, AgentSource.ClaudeCode]
+        : [_settings.SelectedAgent];
+
+    private void ApplyPresentation()
     {
-        var processes = Process.GetProcessesByName(processName);
+        foreach (var (source, window) in _windows)
+        {
+            var glass = window.Glass;
+            glass.Badge = _settings.ShowBothSources;
+            glass.Dark = _settings.DarkDetailGlass;
+            glass.Transparency = Math.Clamp(_settings.DetailTransparency, 25, 70) / 100d;
+            if (_orbsVisible && _fullscreen?.IsFullscreen != true && (_settings.ShowBothSources || source == _settings.SelectedAgent))
+            {
+                if (!window.IsVisible) window.Show();
+                glass.InvalidateVisual();
+            }
+            else if (window.IsVisible)
+            {
+                window.Hide();
+            }
+        }
+        UpdateTray();
+    }
+
+    private async Task RefreshAsync()
+    {
+        if (_shutdown.IsCancellationRequested) return;
+        if (_refreshing)
+        {
+            _refreshQueued = true;
+            return;
+        }
+
+        _refreshing = true;
         try
         {
-            return processes.Select(process => process.Id).ToArray();
+            do
+            {
+                _refreshQueued = false;
+                await Task.WhenAll(ActiveSources().Select(ReadSourceAsync));
+            } while (_refreshQueued && !_shutdown.IsCancellationRequested);
         }
         finally
         {
-            foreach (var process in processes)
-            {
-                process.Dispose();
-            }
+            _refreshing = false;
         }
     }
 
-    private static void TryEnsureClaudeStatusLine()
+    private async Task ReadSourceAsync(AgentSource source)
     {
+        var glass = _windows[source].Glass;
         try
         {
-            ClaudeStatusLineInstaller.EnsureInstalled();
+            using var limit = CancellationTokenSource.CreateLinkedTokenSource(_shutdown.Token);
+            limit.CancelAfter(TimeSpan.FromSeconds(25));
+            var snapshot = await Task.Run(() => _providers[source].ReadAsync(limit.Token), limit.Token);
+            if (_shutdown.IsCancellationRequested) return;
+            var hadBoth = glass.Snapshot is { Current: not null, Weekly: not null };
+            glass.Snapshot = snapshot;
+            glass.Error = null;
+            if (!hadBoth || snapshot.Current is null || snapshot.Weekly is null)
+                glass.Weekly = snapshot.Current is null;
         }
-        catch (Exception exception) when (
-            exception is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
+        catch (OperationCanceledException) when (_shutdown.IsCancellationRequested)
         {
-            // Claude remains selectable; the provider explains that no status data is available.
+            return;
         }
-    }
-
-    private async void OnPositionCommitted(object? sender, LogicalPoint position)
-    {
-        try
+        catch (Exception exception)
         {
-            _settings = _settings with
+            glass.Error = exception switch
             {
-                Left = position.X,
-                Top = position.Y,
-                MonitorDeviceName = GetCurrentMonitorDeviceName(position)
+                QuotaProviderException { Code: "cli-not-found" } => "未找到 Codex 桌面运行时或 CLI。",
+                QuotaProviderException { Code: "status-unavailable" } => "请在菜单安装 Claude Code 桥接，并在 Claude Code 中发送一条消息。",
+                OperationCanceledException => "额度刷新超时。",
+                QuotaProviderException providerError => providerError.Message,
+                _ => "额度读取失败。"
             };
-            if (_settingsStore is not null)
-            {
-                await _settingsStore.SaveAsync(_settings).ConfigureAwait(true);
-            }
+            if (exception is not QuotaProviderException and not OperationCanceledException)
+                Log(exception);
         }
-        catch (Exception)
-        {
-            ShowUiError("settings", "悬浮球位置未能保存。");
-        }
+        glass.InvalidateVisual();
+        UpdateTray();
     }
 
-    private string? GetCurrentMonitorDeviceName(LogicalPoint position)
+    private void RotateQuota()
     {
-        if (_orbWindow is null)
+        foreach (var source in ActiveSources())
         {
-            return null;
+            var glass = _windows[source].Glass;
+            if (glass.Snapshot is { Current: not null, Weekly: not null })
+                glass.Weekly = !glass.Weekly;
         }
-
-        var dpi = VisualTreeHelper.GetDpi(_orbWindow);
-        var devicePoint = new System.Drawing.Point(
-            checked((int)Math.Round(position.X * dpi.DpiScaleX)),
-            checked((int)Math.Round(position.Y * dpi.DpiScaleY)));
-        return System.Windows.Forms.Screen.FromPoint(devicePoint).DeviceName;
+        UpdateTray();
     }
 
-    private async void OnRefreshRequested(object? sender, EventArgs e)
+    private void CreateTray()
     {
-        try
+        _icon = Drawing.Icon.ExtractAssociatedIcon(Environment.ProcessPath!)
+            ?? (Drawing.Icon)Drawing.SystemIcons.Information.Clone();
+        _trayMenu = new Forms.ContextMenuStrip();
+        _trayMenu.Opening += (_, _) =>
         {
-            if (_quotaState is not null)
-            {
-                await _quotaState.RefreshNowAsync().ConfigureAwait(true);
-            }
-        }
-        catch (Exception)
-        {
-            ShowUiError("refresh", "手动刷新未能完成，请稍后重试。");
-        }
-    }
-
-    private void OnOrbVisibilityToggleRequested(object? sender, EventArgs e)
-    {
-        _orbVisible = !_orbVisible;
-        _detailWindow?.Hide();
-        ApplyFullscreenVisibility();
-        _trayIcon?.SetOrbVisible(_orbVisible);
-    }
-
-    private async void OnStartupToggleRequested(object? sender, bool enabled)
-    {
-        try
-        {
-            await ApplySettingsAsync(_settings with { StartWithWindows = enabled })
-                .ConfigureAwait(true);
-        }
-        catch (Exception)
-        {
-            _trayIcon?.SetStartupEnabled(_settings.StartWithWindows);
-            _orbWindow?.SetStartupEnabled(_settings.StartWithWindows);
-            ShowUiError("startup", "开机启动设置未能更新。");
-        }
-    }
-
-    private async void OnAgentSourceRequested(object? sender, AgentSource source)
-    {
-        if (source == _settings.SelectedAgent)
-        {
-            return;
-        }
-
-        try
-        {
-            await SwitchAgentAsync(source).ConfigureAwait(true);
-        }
-        catch (Exception)
-        {
-            _trayIcon?.SetSelectedAgent(_settings.SelectedAgent);
-            _orbWindow?.SetSelectedAgent(_settings.SelectedAgent);
-            ShowUiError("agent-switch", "数据来源切换失败，请稍后重试。");
-            return;
-        }
-
-        _settings = _settings with { SelectedAgent = source };
-        _viewModel?.SetSelectedAgent(source);
-        _trayIcon?.SetSelectedAgent(source);
-        _orbWindow?.SetSelectedAgent(source);
-        try
-        {
-            if (_settingsStore is not null)
-            {
-                await _settingsStore.SaveAsync(_settings).ConfigureAwait(true);
-            }
-        }
-        catch (Exception)
-        {
-            ShowUiError("settings", "数据来源已切换，但未能保存选择。");
-        }
-    }
-
-    private async void OnQuotaWindowRequested(object? sender, QuotaWindowMode mode)
-    {
-        if (_viewModel is null ||
-            !_viewModel.ShowsPercent ||
-            mode == QuotaWindowMode.FiveHour && !_viewModel.HasFiveHourQuota ||
-            mode == QuotaWindowMode.Weekly && !_viewModel.HasWeeklyQuota)
-        {
-            return;
-        }
-
-        if (mode == _settings.QuotaWindow)
-        {
-            return;
-        }
-
-        _settings = _settings with { QuotaWindow = mode };
-        _viewModel?.SetSelectedQuotaWindow(mode);
-        if (_quotaState is not null)
-        {
-            _viewModel?.Apply(_quotaState.Current);
-            _trayIcon?.SetTooltip(FormatTooltip(_quotaState.Current, _viewModel));
-        }
-        _trayIcon?.SetSelectedQuotaWindow(mode);
-        _orbWindow?.SetSelectedQuotaWindow(mode);
-
-        try
-        {
-            if (_settingsStore is not null)
-            {
-                await _settingsStore.SaveAsync(_settings).ConfigureAwait(true);
-            }
-        }
-        catch (Exception)
-        {
-            ShowUiError("settings", "额度窗口已切换，但未能保存选择。");
-        }
-    }
-
-    private async Task SwitchAgentAsync(AgentSource source)
-    {
-        var next = CreateQuotaStateService(source);
-        try
-        {
-            await next.StartAsync().ConfigureAwait(true);
-        }
-        catch
-        {
-            await next.DisposeAsync().ConfigureAwait(true);
-            throw;
-        }
-
-        var previous = _quotaState;
-        if (previous is not null)
-        {
-            previous.StateChanged -= OnQuotaStateChanged;
-            await previous.DisposeAsync().ConfigureAwait(true);
-        }
-
-        _quotaState = next;
-        next.StateChanged += OnQuotaStateChanged;
-        _viewModel?.Apply(next.Current);
-    }
-
-    private void OnSettingsRequested(object? sender, EventArgs e)
-    {
-        try
-        {
-            if (_settingsWindow is not null)
-            {
-                _settingsWindow.Activate();
-                return;
-            }
-
-            _settingsWindow = new SettingsWindow(_settings)
-            {
-                Owner = _orbWindow
-            };
-            _settingsWindow.SettingsConfirmed += OnSettingsConfirmed;
-            _settingsWindow.Closed += OnSettingsWindowClosed;
-            _settingsWindow.Show();
-            _settingsWindow.Activate();
-        }
-        catch (Exception)
-        {
-            ShowUiError("settings", "设置窗口未能打开。");
-        }
-    }
-
-    private async void OnSettingsConfirmed(object? sender, AppSettings settings)
-    {
-        try
-        {
-            await ApplySettingsAsync(settings with { SelectedAgent = _settings.SelectedAgent })
-                .ConfigureAwait(true);
-        }
-        catch (Exception)
-        {
-            ShowUiError("settings", "设置未能保存。");
-        }
-    }
-
-    private void OnSettingsWindowClosed(object? sender, EventArgs e)
-    {
-        if (_settingsWindow is null)
-        {
-            return;
-        }
-
-        _settingsWindow.SettingsConfirmed -= OnSettingsConfirmed;
-        _settingsWindow.Closed -= OnSettingsWindowClosed;
-        _settingsWindow = null;
-    }
-
-    private async Task ApplySettingsAsync(AppSettings settings)
-    {
-        if (_startupRegistration is not null &&
-            settings.StartWithWindows != _settings.StartWithWindows)
-        {
-            _startupRegistration.SetEnabled(settings.StartWithWindows);
-        }
-
-        _settings = settings;
-        _viewModel?.ApplySettings(settings);
-        _trayIcon?.SetStartupEnabled(settings.StartWithWindows);
-        _orbWindow?.SetStartupEnabled(settings.StartWithWindows);
-
-        if (_isFullscreen)
-        {
-            ApplyFullscreenVisibility();
-        }
-
-        if (_settingsStore is not null)
-        {
-            await _settingsStore.SaveAsync(settings).ConfigureAwait(true);
-        }
-    }
-
-    private void OnFullscreenChanged(object? sender, bool isFullscreen)
-    {
-        _isFullscreen = isFullscreen;
-        ApplyFullscreenVisibility();
-    }
-
-    private void ApplyFullscreenVisibility()
-    {
-        if (_orbWindow is null)
-        {
-            return;
-        }
-
-        if (!_orbVisible || _isFullscreen && _settings.HideInFullscreen)
-        {
-            _detailWindow?.Hide();
-            _orbWindow.Hide();
-        }
-        else if (!_orbWindow.IsVisible)
-        {
-            _orbWindow.Show();
-        }
-    }
-
-    private async void OnExitRequested(object? sender, EventArgs e)
-    {
-        await CleanupAsync().ConfigureAwait(true);
-        Shutdown(0);
-    }
-
-    private void ShowUiError(string code, string message)
-    {
-        var current = _quotaState?.Current;
-        var state = new QuotaViewState(
-            null,
-            QuotaRisk.Error,
-            current?.Current,
-            current?.Weekly,
-            DateTimeOffset.Now,
-            new QuotaReadError(code, message))
-        {
-            SourceName = current?.SourceName
+            if (_trayMenu is null) return;
+            var obsolete = _trayMenu.Items.Cast<Forms.ToolStripItem>().ToArray();
+            _trayMenu.Items.Clear();
+            foreach (var item in obsolete) item.Dispose();
+            foreach (var item in MenuEntries()) _trayMenu.Items.Add(BuildTrayItem(item));
         };
-        _viewModel?.Apply(state);
-        _trayIcon?.SetTooltip("Balance Capsule：操作失败");
+        _tray = new Forms.NotifyIcon
+        {
+            Icon = _icon,
+            ContextMenuStrip = _trayMenu,
+            Text = "Balance Capsule",
+            Visible = true
+        };
+        _tray.DoubleClick += (_, _) => _ = RefreshAsync();
     }
 
-    private async Task CleanupAsync()
+    private void UpdateTray()
     {
-        if (Interlocked.Exchange(ref _cleanupStarted, 1) != 0)
+        if (_tray is null) return;
+        var text = string.Join(" · ", ActiveSources().Select(source =>
         {
-            return;
-        }
+            var glass = _windows[source].Glass;
+            return glass.SourceName + " " + glass.QuotaText;
+        }));
+        _tray.Text = text.Length <= 63 ? text : text[..63];
+    }
 
-        _fullscreenMonitor?.Dispose();
-        if (_quotaState is not null)
+    private sealed record Entry(string Label, Action? Run = null, bool? Checked = null, IReadOnlyList<Entry>? Children = null);
+
+    private IReadOnlyList<Entry> MenuEntries() =>
+    [
+        new("立即刷新", () => _ = RefreshAsync()),
+        new(_orbsVisible ? "隐藏悬浮球" : "显示悬浮球", () => { _orbsVisible = !_orbsVisible; ApplyPresentation(); }),
+        new("显示来源", Children:
+        [
+            new("仅显示 Codex", () => SelectSource(AgentSource.Codex, false), !_settings.ShowBothSources && _settings.SelectedAgent == AgentSource.Codex),
+            new("仅显示 Claude Code", () => SelectSource(AgentSource.ClaudeCode, false), !_settings.ShowBothSources && _settings.SelectedAgent == AgentSource.ClaudeCode),
+            new("同时显示 Codex 和 Claude Code", () => SelectSource(AgentSource.Codex, true), _settings.ShowBothSources)
+        ]),
+        new("详情玻璃效果", Children:
+        [
+            new("标准液态毛玻璃", () => UpdateSettings(_settings with { DarkDetailGlass = false }), !_settings.DarkDetailGlass),
+            new("深色液态玻璃", () => UpdateSettings(_settings with { DarkDetailGlass = true }), _settings.DarkDetailGlass)
+        ]),
+        new("详情透明度", Children: new[] { 70, 55, 40, 25 }
+            .Select(percent => new Entry($"{percent}%", () => UpdateSettings(_settings with { DetailTransparency = percent }),
+                _settings.DetailTransparency == percent)).ToArray()),
+        new("登录时启动", SetStartup, _settings.StartWithWindows),
+        new("安装 Claude Code 桥接…", InstallClaudeBridge),
+        new("关于 Balance Capsule", () => MessageBox.Show("BalanceCapsule-win.15\\nWindows 11 x64", "Balance Capsule")),
+        new("退出", () => _ = ExitAsync())
+    ];
+
+    private ContextMenu BuildOrbMenu()
+    {
+        var menu = new ContextMenu();
+        foreach (var entry in MenuEntries()) menu.Items.Add(BuildOrbItem(entry));
+        return menu;
+    }
+
+    private static MenuItem BuildOrbItem(Entry entry)
+    {
+        var item = new MenuItem { Header = entry.Label, IsCheckable = entry.Checked.HasValue, IsChecked = entry.Checked == true };
+        if (entry.Run is not null) item.Click += (_, _) => entry.Run();
+        if (entry.Children is not null)
+            foreach (var child in entry.Children) item.Items.Add(BuildOrbItem(child));
+        return item;
+    }
+
+    private static Forms.ToolStripMenuItem BuildTrayItem(Entry entry)
+    {
+        var item = new Forms.ToolStripMenuItem(entry.Label) { Checked = entry.Checked == true };
+        if (entry.Run is not null) item.Click += (_, _) => entry.Run();
+        if (entry.Children is not null)
+            foreach (var child in entry.Children) item.DropDownItems.Add(BuildTrayItem(child));
+        return item;
+    }
+
+    private void SelectSource(AgentSource source, bool both)
+    {
+        UpdateSettings(_settings with { SelectedAgent = source, ShowBothSources = both });
+        _ = RefreshAsync();
+    }
+
+    private void SetStartup()
+    {
+        try
         {
-            _quotaState.StateChanged -= OnQuotaStateChanged;
-            try
-            {
-                await _quotaState.DisposeAsync().ConfigureAwait(true);
-            }
-            catch
-            {
-                // Shutdown continues even when a provider process exits unexpectedly.
-            }
+            var enabled = !_settings.StartWithWindows;
+            _startup?.SetEnabled(enabled);
+            UpdateSettings(_settings with { StartWithWindows = enabled });
         }
-
-        _balanceHttpClient?.Dispose();
-        _balanceHttpClient = null;
-
-        _trayIcon?.Dispose();
-
-        if (_settingsStore is not null)
+        catch (Exception exception)
         {
-            try
-            {
-                await _settingsStore.SaveAsync(_settings).ConfigureAwait(true);
-            }
-            catch
-            {
-                // A settings write failure must not leave the process running during shutdown.
-            }
+            Log(exception);
+            MessageBox.Show("未能更新登录时启动设置。", "Balance Capsule");
         }
+    }
 
-        _settingsWindow?.Close();
-        _detailWindow?.Close();
-        _orbWindow?.Close();
+    private static void InstallClaudeBridge()
+    {
+        try
+        {
+            var result = ClaudeStatusLineInstaller.EnsureInstalled();
+            MessageBox.Show(result == ClaudeStatusLineInstallResult.ExistingStatusLine
+                ? "检测到已有 Claude Code statusLine，原设置已保留。请在现有 statusLine 中接入额度脚本。"
+                : "桥接已就绪。请在 Claude Code 中发送一条消息，再刷新额度。", "Balance Capsule");
+        }
+        catch (Exception exception)
+        {
+            Log(exception);
+            MessageBox.Show("无法安装 Claude Code 桥接。请检查 Claude Code 设置文件。", "Balance Capsule");
+        }
+    }
+
+    private void UpdateSettings(AppSettings settings)
+    {
+        _settings = settings;
+        ApplyPresentation();
+        _ = SaveSettingsAsync();
+    }
+
+    private async Task SaveSettingsAsync()
+    {
+        await _saveLock.WaitAsync();
+        try { await _settingsStore.SaveAsync(_settings); }
+        catch (Exception exception) { Log(exception); }
+        finally { _saveLock.Release(); }
+    }
+
+    private async Task ExitAsync()
+    {
+        await _saveLock.WaitAsync();
+        _saveLock.Release();
+        Shutdown();
+    }
+
+    private static void Log(Exception exception)
+    {
+        try
+        {
+            var directory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "BalanceCapsule");
+            Directory.CreateDirectory(directory);
+            File.AppendAllText(Path.Combine(directory, "startup.log"), $"[{DateTimeOffset.Now:O}] {exception}\\n");
+        }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
+    }
+
+    protected override void OnExit(ExitEventArgs e)
+    {
+        _shutdown.Cancel();
+        _refreshTimer.Stop();
+        _rotationTimer.Stop();
+        _fullscreen?.Dispose();
+        _tray?.Dispose();
+        _trayMenu?.Dispose();
+        _icon?.Dispose();
         _singleInstance.Dispose();
+        base.OnExit(e);
     }
 }
